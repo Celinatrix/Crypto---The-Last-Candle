@@ -74,6 +74,7 @@ interface MemberViewProps {
 function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewProps) {
   const now = useNow();
   const s = getMemberState(member, volume, now);
+  const resting = s.progress?.phase === "rest";
 
   return (
     <section className="card card--dash" aria-labelledby="dash-title">
@@ -89,7 +90,8 @@ function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewP
           {s.label}
           {s.deadline && (
             <span className="pill__extra">
-              · hạn <time className="num" dateTime={new Date(s.deadline).toISOString()} title={fmtDateTime(s.deadline)}>
+              · {resting ? "tính lại" : "hạn"}{" "}
+              <time className="num" dateTime={new Date(s.deadline).toISOString()} title={fmtDateTime(s.deadline)}>
                 {fmtDateTimeShort(s.deadline)}
               </time>
             </span>
@@ -104,8 +106,11 @@ function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewP
       )}
 
       {s.alert && (
-        <div className={`alert alert--${s.tone === "danger" ? "danger" : "warn"} alert--strong`} role="alert">
-          <span aria-hidden="true">⚠ </span>
+        <div
+          className={`alert alert--${resting ? "ok" : s.tone === "danger" ? "danger" : "warn"} alert--strong`}
+          role={resting ? "status" : "alert"}
+        >
+          <span aria-hidden="true">{resting ? "✅ " : "⚠ "}</span>
           {s.alert}
         </div>
       )}
@@ -115,8 +120,16 @@ function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewP
       {volume && volume.daily.length > 0 ? (
         <VolumeChart
           daily={volume.daily}
-          bandFrom={s.progress ? (s.progress.grace?.startDay ?? s.progress.startDay) : undefined}
-          bandLabel={s.progress ? `Chu kỳ #${s.progress.grace?.index ?? s.progress.index}` : undefined}
+          band={
+            s.progress
+              ? { from: s.progress.startDay, to: s.progress.bandEndDay, label: `Chu kỳ #${s.progress.index}` }
+              : undefined
+          }
+          rest={
+            s.progress?.phase === "rest" && s.progress.metDay && s.progress.restUntil
+              ? { after: s.progress.metDay, to: s.progress.restUntil }
+              : undefined
+          }
         />
       ) : (
         <div className="chart chart--empty">Biểu đồ sẽ hiển thị khi có dữ liệu khối lượng.</div>

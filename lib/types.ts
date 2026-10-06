@@ -20,6 +20,14 @@ export interface VolumeSummary {
   /** 30 items, oldest → newest */
   daily: DailyVolume[];
   updatedAt: string;
+  /**
+   * Optional: first day ("YYYY-MM-DD", UTC) of the member's current — or most recent —
+   * Premium cycle, as tracked by the backend. Needed once a member's history is longer
+   * than `daily`; without it the page walks the cycles from `joinedAt`.
+   */
+  cycleStart?: string;
+  /** Optional: number of the cycle that starts on `cycleStart` (defaults to 1). */
+  cycleIndex?: number;
 }
 
 export type MeResponse =

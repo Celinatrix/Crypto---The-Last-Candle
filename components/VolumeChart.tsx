@@ -10,24 +10,28 @@ const MIN_BAR = 1.6; // zero-volume stub height, in viewBox units
 
 interface Props {
   daily: DailyVolume[];
-  /** "YYYY-MM-DD": highlight days from here to the newest bar (the cycle under review). */
-  bandFrom?: string;
-  bandLabel?: string;
+  /** Counted days of the cycle under review ("YYYY-MM-DD", inclusive). */
+  band?: { from: string; to: string; label: string };
+  /** Rest days after the target was reached: (after, to]. Shown but not counted. */
+  rest?: { after: string; to: string };
 }
 
-export default function VolumeChart({ daily, bandFrom, bandLabel = "Chu kỳ hiện tại" }: Props) {
+export default function VolumeChart({ daily, band, rest }: Props) {
   const [active, setActive] = useState<number | null>(null);
   const descId = useId();
   const n = daily.length;
   if (n === 0) return null;
 
-  const firstInBand = bandFrom ? daily.findIndex((d) => d.day >= bandFrom) : -1;
+  const inBandDay = (day: string) => !!band && day >= band.from && day <= band.to;
+  const isRestDay = (day: string) => !!rest && day > rest.after && day <= rest.to;
+  const firstInBand = daily.findIndex((d) => inBandDay(d.day));
   const bandStart = firstInBand === -1 ? n : firstInBand;
-  const bandN = n - bandStart;
+  const bandN = daily.filter((d) => inBandDay(d.day)).length;
+  const restN = daily.filter((d) => isRestDay(d.day)).length;
   const max = Math.max(0, ...daily.map((d) => d.volume));
   const slot = VIEW_W / n;
   const barW = slot * 0.64;
-  const zeroDays = daily.slice(bandStart).filter((d) => d.volume <= 0).length;
+  const zeroDays = daily.filter((d) => inBandDay(d.day) && d.volume <= 0).length;
   const activeDay = active !== null ? daily[active] : undefined;
 
   function indexFromPointer(e: PointerEvent<SVGSVGElement>) {
@@ -57,7 +61,13 @@ export default function VolumeChart({ daily, bandFrom, bandLabel = "Chu kỳ hi�
           {bandN > 0 && (
             <>
               <span className="chart__swatch chart__swatch--band" aria-hidden="true" />
-              {bandLabel}
+              {band?.label}
+            </>
+          )}
+          {restN > 0 && (
+            <>
+              <span className="chart__swatch chart__swatch--rest" aria-hidden="true" />
+              Ngày nghỉ (không tính)
             </>
           )}
           {zeroDays > 0 && (
@@ -93,11 +103,12 @@ export default function VolumeChart({ daily, bandFrom, bandLabel = "Chu kỳ hi�
           <line className="chart__baseline" x1={0} x2={VIEW_W} y1={VIEW_H} y2={VIEW_H} vectorEffect="non-scaling-stroke" />
           {daily.map((d, i) => {
             const h = d.volume > 0 && max > 0 ? Math.max(MIN_BAR, (d.volume / max) * (VIEW_H - 4)) : MIN_BAR;
-            const inBand = i >= bandStart;
+            const inBand = inBandDay(d.day);
             const cls = [
               "chart__bar",
               inBand ? "chart__bar--band" : "",
               inBand && d.volume <= 0 ? "chart__bar--zero" : "",
+              isRestDay(d.day) ? "chart__bar--rest" : "",
               active === i ? "is-active" : "",
             ]
               .filter(Boolean)
@@ -113,9 +124,10 @@ export default function VolumeChart({ daily, bandFrom, bandLabel = "Chu kỳ hi�
             aria-live="polite"
           >
             <span className="chart__tip-day num">{fmtDay(activeDay.day)}</span>
-            <span className={`chart__tip-val num${activeDay.volume <= 0 && active >= bandStart ? " is-zero" : ""}`}>
+            <span className={`chart__tip-val num${activeDay.volume <= 0 && inBandDay(activeDay.day) ? " is-zero" : ""}`}>
               {fmtUSDT(activeDay.volume)}
             </span>
+            {isRestDay(activeDay.day) && <span className="chart__tip-day">Ngày nghỉ · không tính</span>}
           </div>
         )}
       </div>

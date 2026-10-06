@@ -1,13 +1,16 @@
 import { toTime } from "./format";
-import type { DailyVolume } from "./types";
+import type { VolumeSummary } from "./types";
 
 /**
  * Premium volume rule (single source of truth for the page):
- * - Cycles of 14 days start on the member's registration day and repeat.
- * - Each cycle requires at least 60,000$ of trading volume.
- * - From day 10 of a cycle, a member below the target sees a warning.
- * - A cycle that ends below target gets 24 more hours; after that the
- *   member is removed from the group (the backend enforces the removal).
+ * - Each cycle gives the member 14 days to reach 60,000$ of trading volume.
+ * - From day 10, a member still below target sees a warning.
+ * - Reaching the target ends the cycle early: the rest of the 14 days does not
+ *   count, plus 3 more rest days. Volume traded while resting is ignored.
+ *   The next cycle starts the day after the rest.
+ * - A cycle that ends below target gets a 24h grace day. Reaching the target
+ *   then also earns the 3 rest days; missing it means removal (enforced by the
+ *   backend via `member.status = "kicked"`).
  *
  * Days are UTC calendar days, matching the "YYYY-MM-DD" buckets of `daily`.
  */
@@ -15,102 +18,152 @@ export const PREMIUM_RULE = {
   cycleDays: 14,
   requiredUsd: 60_000,
   warnFromDay: 10,
-  graceMs: 24 * 60 * 60 * 1000,
+  restDays: 3,
 } as const;
 
 const DAY_MS = 86_400_000;
 
-export type CyclePhase = "active" | "warning" | "met" | "grace";
+export type CyclePhase = "active" | "warning" | "grace" | "rest" | "failed";
 
 export interface CycleProgress {
-  /** 1-based cycle number since registration */
+  /** 1-based cycle number */
   index: number;
-  /** First and last day of the cycle, "YYYY-MM-DD" (inclusive) */
+  /** First and last trading day of the cycle, "YYYY-MM-DD" (inclusive) */
   startDay: string;
   endDay: string;
-  /** ms timestamp when the cycle ends (start of the day after endDay, UTC) */
+  /** End of day 14 (ms) */
   deadline: number;
-  /** 1…14 */
+  /** End of the 24h grace day (ms) */
+  graceDeadline: number;
+  /** 1…14, or 15 on the grace day */
   dayOfCycle: number;
-  /** Whole days left until the deadline, at least 1 while the cycle runs */
+  /** Whole days left until `deadline`, at least 1 while the cycle runs */
   daysLeft: number;
+  /** Counted volume: up to today, or up to the day the target was reached */
   volume: number;
   required: number;
-  /** Floored; can exceed 100 once the target is passed */
+  /** Floored; can exceed 100 */
   percent: number;
-  /** USD still needed (0 when met) */
+  /** USD still needed (0 once reached) */
   remaining: number;
-  /** USD per remaining day to make the deadline (0 when met) */
+  /** USD per remaining day to make the deadline */
   perDay: number;
   phase: CyclePhase;
-  /** Set when the previous cycle missed its target and is in its 24h grace window */
-  grace: {
-    index: number;
-    startDay: string;
-    endDay: string;
-    deadline: number;
-    volume: number;
-    remaining: number;
-  } | null;
+  /** Day the target was reached ("YYYY-MM-DD") — rest phase only */
+  metDay?: string;
+  /** Last rest day ("YYYY-MM-DD") — rest phase only */
+  restUntil?: string;
+  /** When counting resumes (ms, start of the next cycle) — rest phase only */
+  resumesAt?: number;
+  /** First day of the next cycle ("YYYY-MM-DD") — rest phase only */
+  nextStartDay?: string;
+  /** Last counted day, for the highlighted band on the chart */
+  bandEndDay: string;
 }
 
 const dayNumber = (ms: number) => Math.floor(ms / DAY_MS);
 const dayString = (n: number) => new Date(n * DAY_MS).toISOString().slice(0, 10);
+const parseDay = (s: string) => {
+  const t = Date.parse(`${s}T00:00:00Z`);
+  return Number.isFinite(t) ? dayNumber(t) : NaN;
+};
 
-function sumDays(daily: DailyVolume[], fromDay: number, toDay: number): number {
-  const from = dayString(fromDay);
-  const to = dayString(toDay);
-  return daily.reduce((acc, d) => (d.day >= from && d.day <= to ? acc + Math.max(0, d.volume) : acc), 0);
-}
-
-export function getCycleProgress(joinedAt: string, daily: DailyVolume[], now: number): CycleProgress | null {
+/**
+ * Walks the cycles forward from an anchor (the backend's `cycleStart`, or the
+ * registration day) and returns the one that applies today.
+ */
+export function getCycleProgress(
+  joinedAt: string,
+  volume: Pick<VolumeSummary, "daily" | "cycleStart" | "cycleIndex">,
+  now: number,
+): CycleProgress | null {
   const joined = toTime(joinedAt);
-  if (!Number.isFinite(joined)) return null;
+  const anchor = volume.cycleStart ? parseDay(volume.cycleStart) : Number.isFinite(joined) ? dayNumber(joined) : NaN;
+  if (!Number.isFinite(anchor)) return null;
 
-  const { cycleDays, requiredUsd, warnFromDay, graceMs } = PREMIUM_RULE;
-  const joinDay = dayNumber(joined);
-  const today = Math.max(joinDay, dayNumber(now));
-  const k = Math.floor((today - joinDay) / cycleDays);
-  const start = joinDay + k * cycleDays;
-  const end = start + cycleDays - 1;
-  const deadline = (end + 1) * DAY_MS;
+  const { cycleDays, requiredUsd, warnFromDay, restDays } = PREMIUM_RULE;
+  const byDay = new Map<number, number>();
+  for (const d of volume.daily) {
+    const n = parseDay(d.day);
+    if (Number.isFinite(n)) byDay.set(n, Math.max(0, d.volume));
+  }
+  const vol = (n: number) => byDay.get(n) ?? 0;
+  const today = Math.max(anchor, dayNumber(now));
 
-  const volume = sumDays(daily, start, today);
-  const remaining = Math.max(0, requiredUsd - volume);
-  const daysLeft = Math.max(1, Math.ceil((deadline - now) / DAY_MS));
-  const dayOfCycle = today - start + 1;
-  const met = remaining === 0;
+  let start = anchor;
+  let index = volume.cycleIndex ?? 1;
 
-  let grace: CycleProgress["grace"] = null;
-  const cycleStartMs = start * DAY_MS;
-  if (k >= 1 && now < cycleStartMs + graceMs) {
-    // Volume traded during the grace day still counts toward the previous cycle.
-    const prevVolume = sumDays(daily, start - cycleDays, start);
-    if (prevVolume < requiredUsd) {
-      grace = {
-        index: k,
-        startDay: dayString(start - cycleDays),
-        endDay: dayString(start - 1),
-        deadline: cycleStartMs + graceMs,
-        volume: prevVolume,
-        remaining: requiredUsd - prevVolume,
+  // One iteration per cycle; bounded so bad data can never loop forever (~3 years).
+  for (let guard = 0; guard < 64; guard++) {
+    const end = start + cycleDays - 1;
+    const graceDay = end + 1;
+    let cum = 0;
+    let metDay: number | null = null;
+    for (let d = start; d <= Math.min(today, graceDay); d++) {
+      cum += vol(d);
+      if (cum >= requiredUsd) {
+        metDay = d;
+        break;
+      }
+    }
+
+    const base = {
+      index,
+      startDay: dayString(start),
+      endDay: dayString(end),
+      deadline: (end + 1) * DAY_MS,
+      graceDeadline: (graceDay + 1) * DAY_MS,
+      required: requiredUsd,
+      volume: cum,
+      percent: Math.floor((cum / requiredUsd) * 100),
+      remaining: Math.max(0, requiredUsd - cum),
+    };
+
+    if (metDay !== null) {
+      // Reached by day 14: rest until day 14 + 3. Reached on the grace day: rest 3 days after it.
+      const restEnd = (metDay <= end ? end : graceDay) + restDays;
+      const nextStart = restEnd + 1;
+      if (today <= restEnd) {
+        return {
+          ...base,
+          dayOfCycle: Math.min(cycleDays + 1, metDay - start + 1),
+          daysLeft: 0,
+          perDay: 0,
+          phase: "rest",
+          metDay: dayString(metDay),
+          restUntil: dayString(restEnd),
+          resumesAt: nextStart * DAY_MS,
+          nextStartDay: dayString(nextStart),
+          bandEndDay: dayString(metDay),
+        };
+      }
+      start = nextStart;
+      index++;
+      continue;
+    }
+
+    if (today <= end) {
+      const dayOfCycle = today - start + 1;
+      const daysLeft = Math.max(1, Math.ceil((base.deadline - now) / DAY_MS));
+      return {
+        ...base,
+        dayOfCycle,
+        daysLeft,
+        perDay: base.remaining / daysLeft,
+        phase: dayOfCycle >= warnFromDay ? "warning" : "active",
+        bandEndDay: dayString(today),
       };
     }
-  }
 
-  return {
-    index: k + 1,
-    startDay: dayString(start),
-    endDay: dayString(end),
-    deadline,
-    dayOfCycle,
-    daysLeft,
-    volume,
-    required: requiredUsd,
-    percent: Math.floor((volume / requiredUsd) * 100),
-    remaining,
-    perDay: met ? 0 : remaining / daysLeft,
-    phase: grace ? "grace" : met ? "met" : dayOfCycle >= warnFromDay ? "warning" : "active",
-    grace,
-  };
+    // Past day 14 and still short: grace day, or failed after it.
+    return {
+      ...base,
+      dayOfCycle: cycleDays + 1,
+      daysLeft: 0,
+      perDay: base.remaining,
+      phase: today === graceDay ? "grace" : "failed",
+      bandEndDay: dayString(graceDay),
+    };
+  }
+  return null;
 }

@@ -895,6 +895,12 @@ input {
   color: #ffc2c2;
 }
 
+.alert--ok {
+  background: var(--ok-soft);
+  border-color: rgba(142, 230, 192, 0.35);
+  color: #c9f5e2;
+}
+
 .alert--warn {
   background: var(--warn-soft);
   border-color: rgba(245, 184, 74, 0.35);
@@ -1182,6 +1188,11 @@ input {
   border: 1px solid rgba(169, 220, 236, 0.5);
 }
 
+.chart__swatch--rest {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0 2px, transparent 2px 4px);
+  margin-left: 6px;
+}
+
 .chart__swatch--zero {
   background: var(--danger);
   margin-left: 6px;
@@ -1236,6 +1247,13 @@ input {
 
 .chart__bar--zero {
   fill: var(--danger);
+}
+
+.chart__bar--rest {
+  fill: rgba(255, 255, 255, 0.12);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.4;
+  stroke-dasharray: 1 1;
 }
 
 .chart__bar.is-active {

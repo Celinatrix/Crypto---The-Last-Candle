@@ -5,9 +5,19 @@
 import { readLink } from "./linkSession";
 import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "./types";
 
-export type MockScenario = "new" | "fresh" | "active" | "met" | "soon" | "grace" | "kicked" | "error";
+export type MockScenario =
+  | "new"
+  | "fresh"
+  | "active"
+  | "soon"
+  | "met"
+  | "rest"
+  | "grace"
+  | "failed"
+  | "kicked"
+  | "error";
 
-const SCENARIOS: readonly MockScenario[] = ["new", "fresh", "active", "met", "soon", "grace", "kicked", "error"];
+const SCENARIOS: readonly MockScenario[] = ["new", "fresh", "active", "soon", "met", "rest", "grace", "failed", "kicked", "error"];
 
 export function parseScenario(value: string | null | undefined): MockScenario {
   return SCENARIOS.find((s) => s === value) ?? "new";
@@ -18,26 +28,37 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const scenario = () => parseScenario(new URLSearchParams(window.location.search).get("mock"));
 
 /**
- * Where "today" falls for each scenario, and how much was traded in the cycle so far.
- * prevVolume = total of the previous 14-day cycle (only "grace" misses it).
+ * Each plan places "today" on day `today` of cycle `cycle` (day 1 = cycle start) and
+ * spreads volume over day ranges of that cycle. Days not listed get small "rest" volume.
  */
-const PLANS: Record<Exclude<MockScenario, "new" | "error">, { cycle: number; day: number; volume: number; prevVolume: number }> = {
-  fresh: { cycle: 1, day: 2, volume: 3_480, prevVolume: 0 },
-  active: { cycle: 3, day: 6, volume: 31_960, prevVolume: 68_200 },
-  met: { cycle: 2, day: 9, volume: 71_450, prevVolume: 64_900 },
-  soon: { cycle: 2, day: 11, volume: 41_830, prevVolume: 62_300 },
-  grace: { cycle: 3, day: 1, volume: 0, prevVolume: 52_310 },
-  kicked: { cycle: 4, day: 3, volume: 2_150, prevVolume: 18_400 },
+interface Plan {
+  cycle: number;
+  today: number;
+  segments: Array<[from: number, to: number, total: number]>;
+}
+
+const PLANS: Record<Exclude<MockScenario, "new" | "error">, Plan> = {
+  fresh: { cycle: 1, today: 2, segments: [[1, 2, 3_480]] },
+  active: { cycle: 3, today: 6, segments: [[1, 6, 31_960]] },
+  soon: { cycle: 2, today: 11, segments: [[1, 11, 41_830]] },
+  // Reached on day 10 (52,000 + 11,200), now resting on day 12.
+  met: { cycle: 2, today: 12, segments: [[1, 9, 52_000], [10, 10, 11_200]] },
+  // Reached exactly on day 14, now on the 2nd of the 3 extra rest days.
+  rest: { cycle: 2, today: 16, segments: [[1, 13, 55_000], [14, 14, 6_800]] },
+  grace: { cycle: 3, today: 15, segments: [[1, 14, 52_310], [15, 15, 0]] },
+  failed: { cycle: 2, today: 16, segments: [[1, 15, 48_000], [16, 16, 0]] },
+  kicked: { cycle: 4, today: 3, segments: [[1, 3, 2_150]] },
 };
 
 const isoDay = (dayNumber: number) => new Date(dayNumber * DAY).toISOString().slice(0, 10);
 const rand = (i: number, seed: number) => Math.abs(Math.sin(seed * 31.7 + i * 12.9898)) % 1;
+const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
 
-/** Spread `total` over `days` consecutive day numbers with uneven, partly-zero weights. */
-function spread(total: number, days: number[], seed: number): Map<number, number> {
-  const weights = days.map((d) => (rand(d, seed) < 0.15 ? 0 : rand(d, seed + 1) + 0.2));
+/** Spread `total` over `days` with uneven, partly-zero weights. */
+function spread(total: number, days: number[], seed: number): Array<[number, number]> {
+  const weights = days.map((d) => (days.length > 2 && rand(d, seed) < 0.15 ? 0 : rand(d, seed + 1) + 0.2));
   const sum = weights.reduce((a, w) => a + w, 0) || 1;
-  return new Map(days.map((d, i) => [d, Math.round((total * (weights[i] ?? 0)) / sum * 100) / 100]));
+  return days.map((d, i) => [d, Math.round(((total * (weights[i] ?? 0)) / sum) * 100) / 100]);
 }
 
 export async function mockMe(): Promise<MeResponse> {
@@ -53,17 +74,16 @@ function meFor(s: keyof typeof PLANS, link: { uid: string; email: string }): MeR
   const now = Date.now();
   const plan = PLANS[s];
   const today = Math.floor(now / DAY);
-  const cycleStart = today - (plan.day - 1);
-  const joinDay = cycleStart - (plan.cycle - 1) * 14;
+  const cycleStart = today - (plan.today - 1);
+  const joinDay = plan.cycle === 1 ? cycleStart : cycleStart - (plan.cycle - 1) * 17;
 
-  const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
-  const volumes = new Map<number, number>([
-    ...spread(plan.prevVolume, range(Math.max(joinDay, cycleStart - 14), cycleStart - 1), 7),
-    ...spread(plan.volume, range(cycleStart, today), 3),
-  ]);
+  const planned = new Map<number, number>(
+    plan.segments.flatMap(([from, to, total], k) => spread(total, range(cycleStart + from - 1, cycleStart + to - 1), k + 3)),
+  );
   const daily = range(today - 29, today).map((d) => ({
     day: isoDay(d),
-    volume: d < joinDay ? 0 : (volumes.get(d) ?? Math.round((rand(d, 11) * 6_000 + 1_500) * 100) / 100),
+    volume:
+      d < joinDay ? 0 : (planned.get(d) ?? Math.round((rand(d, 11) * 5_000 + 1_500) * 100) / 100),
   }));
   const total = (n: number) => Math.round(daily.slice(-n).reduce((a, d) => a + d.volume, 0) * 100) / 100;
 
@@ -80,6 +100,9 @@ function meFor(s: keyof typeof PLANS, link: { uid: string; email: string }): MeR
       total14: total(14),
       daily,
       updatedAt: new Date(now - 12 * 60_000).toISOString(),
+      // The backend's own record of where the current cycle began.
+      cycleStart: isoDay(cycleStart),
+      cycleIndex: plan.cycle,
     },
   };
 }
@@ -96,7 +119,7 @@ const BASE_POSTS: Omit<NewsPost, "date">[] = [
   {
     id: 412,
     url: "https://t.me/s/thelastcandle/412",
-    text: "📌 Nhắc lại quy định nhóm Premium:\nMỗi 14 ngày cần đạt 60.000$ volume.\nNgày 10 chưa đủ → cảnh báo.\nHết chu kỳ còn thiếu → gia hạn 24 giờ, sau đó rời nhóm.\n\nKiểm tra tiến độ của bạn ngay trên trang thành viên.",
+    text: "📌 Nhắc lại quy định nhóm Premium:\nMỗi chu kỳ có 14 ngày để đạt 60.000$ volume.\nĐạt sớm → nghỉ hết chu kỳ + 3 ngày (không tính volume).\nNgày 10 chưa đủ → cảnh báo; hết hạn → gia hạn 24 giờ.\n\nKiểm tra tiến độ của bạn ngay trên trang thành viên.",
     views: 1840,
     photo: null,
   },

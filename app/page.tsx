@@ -26,8 +26,9 @@ export default function Home() {
               <span className="members__title-vi">Khối lượng giao dịch 30 ngày của bạn.</span>
             </h2>
             <p className="members__lead">
-              Mỗi chu kỳ 14 ngày, tính từ ngày đăng ký, cần đạt tối thiểu 60.000$ khối lượng giao dịch. Từ ngày thứ 10
-              nếu chưa đủ, bạn sẽ thấy cảnh báo; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá khỏi nhóm.
+              Mỗi chu kỳ bạn có 14 ngày để đạt tối thiểu 60.000$ khối lượng giao dịch. Đạt sớm thì những ngày còn lại
+              cùng 3 ngày tiếp theo là thời gian nghỉ, volume không được tính. Từ ngày thứ 10 nếu chưa đủ, bạn sẽ thấy
+              cảnh báo; hết 14 ngày còn 24 giờ gia hạn, sau đó sẽ bị xoá khỏi nhóm.
             </p>
           </header>
 
@@ -43,8 +44,10 @@ export default function Home() {
                 </li>
                 <li className="rule">
                   <span className="rule__num num">02</span>
-                  <h3 className="rule__title">60.000$ mỗi 14 ngày</h3>
-                  <p className="rule__text">Mỗi chu kỳ 14 ngày tính từ ngày đăng ký cần đạt tối thiểu 60.000$ khối lượng.</p>
+                  <h3 className="rule__title">60.000$ trong 14 ngày</h3>
+                  <p className="rule__text">
+                    Đạt sớm thì phần còn lại của chu kỳ và 3 ngày sau đó là thời gian nghỉ, không tính volume.
+                  </p>
                 </li>
                 <li className="rule">
                   <span className="rule__num num">03</span>

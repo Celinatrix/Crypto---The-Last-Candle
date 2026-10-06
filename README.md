@@ -18,17 +18,21 @@ Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene
 
 Defined once in `lib/premium.ts` (`PREMIUM_RULE`) and shown in the dashboard's progress card:
 
-- Cycles of **14 days** start on the member's registration day (`joinedAt`, UTC calendar days) and repeat.
-- Each cycle needs at least **60,000$** of trading volume (summed from `volume.daily`).
-- From **day 10**, a member still below target sees an on-page warning (amber card + alert with
-  "còn X ngày — cần thêm $Y (~$Z/ngày)").
-- A cycle that ends below target gets **24 more hours** (volume traded that day still counts). The card
-  turns red with an hours:minutes countdown.
-- After the grace window the **backend** must set `member.status = "kicked"`; the page then shows
-  "Đã bị xoá khỏi nhóm". The page only displays the rule — it does not remove anyone, and it no longer
-  uses `status: "warned"` / `warnedAt`.
+- Each cycle gives the member **14 days** to reach **60,000$** of trading volume (UTC calendar days).
+- **Reached early** (e.g. day 10): the rest of the 14 days does not count, plus **3 rest days**; the next
+  cycle starts the day after (day 18). Reached exactly on day 14 → rest days 15–17. Volume traded while
+  resting is ignored. The card turns green with a countdown to when counting resumes.
+- From **day 10**, a member still short sees an on-page warning ("còn X ngày — cần thêm $Y (~$Z/ngày)").
+- Still short after day 14 → **24h grace** (day 15). Reaching the target then also earns 3 rest days
+  (next cycle on day 19). Missing it → "Không đạt yêu cầu"; the **backend** must then set
+  `member.status = "kicked"` (the page never removes anyone).
 
-Scenarios for dev mocks: `?mock=fresh|active|met|soon|grace|kicked`.
+Because cycle start dates now depend on when each cycle was reached, the page walks cycles forward from
+an anchor. `/api/me` should send `volume.cycleStart` (first day of the current or most recent cycle,
+`"YYYY-MM-DD"`) and optionally `volume.cycleIndex`. Without them the page walks from `joinedAt`, which is
+only correct while the member's whole history fits inside `daily` (30 days).
+
+Dev mock scenarios: `?mock=fresh|active|soon|met|rest|grace|failed|kicked`.
 
 ## Setup
 
@@ -55,7 +59,7 @@ Because anyone can type any UID, the backend should decide how much to trust a n
 ### Dev mocks
 
 Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the backend. Switch states with
-`?mock=new|fresh|active|met|soon|grace|kicked|error` (default `new` shows the popup). Mocks only run under
+`?mock=new|fresh|active|soon|met|rest|grace|failed|kicked|error` (default `new` shows the popup). Mocks only run under
 `next dev`; production builds strip them.
 
 ## Layout
