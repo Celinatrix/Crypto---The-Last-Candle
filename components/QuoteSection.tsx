@@ -94,13 +94,14 @@ export default function QuoteSection() {
         <blockquote>
           <p id="quote-text" className="quote__text font-instrument" lang="en">
             “The Last Candle was built on a simple belief: a community stays strong when everyone keeps showing up. We
-            ask for no heroics — only steady, honest activity. Fourteen quiet days bring a gentle reminder; twenty-four
-            hours more, and the seat passes to someone ready to trade with us.”
+            ask for steady, honest activity — sixty thousand in volume every fourteen days. Day ten brings a reminder;
+            a cycle that closes short gets twenty-four more hours, then the seat passes to someone ready to trade with
+            us.”
           </p>
           <p className="quote__vi">
             “The Last Candle được xây dựng trên một niềm tin: cộng đồng vững mạnh khi mỗi người đều hiện diện. Không cần
-            lệnh lớn, chỉ cần giao dịch đều đặn. 14 ngày không có khối lượng sẽ nhận một lời nhắc; thêm 24 giờ nữa, chỗ
-            ngồi sẽ dành cho người sẵn sàng đồng hành.”
+            lệnh lớn, chỉ cần giao dịch đều đặn: 60.000$ khối lượng mỗi 14 ngày. Ngày thứ 10 sẽ có lời nhắc; chu kỳ chưa
+            đạt được thêm 24 giờ, sau đó chỗ ngồi sẽ dành cho người sẵn sàng đồng hành.”
           </p>
         </blockquote>
         <figcaption className="quote__by">Ban quản trị — The Last Candle</figcaption>

@@ -14,6 +14,22 @@ Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene
    member cookie should use the same lifetime (`Max-Age=86400`).
 3. After linking, the page shows the 30-day volume dashboard and the community news feed.
 
+## Premium volume rule
+
+Defined once in `lib/premium.ts` (`PREMIUM_RULE`) and shown in the dashboard's progress card:
+
+- Cycles of **14 days** start on the member's registration day (`joinedAt`, UTC calendar days) and repeat.
+- Each cycle needs at least **60,000$** of trading volume (summed from `volume.daily`).
+- From **day 10**, a member still below target sees an on-page warning (amber card + alert with
+  "còn X ngày — cần thêm $Y (~$Z/ngày)").
+- A cycle that ends below target gets **24 more hours** (volume traded that day still counts). The card
+  turns red with an hours:minutes countdown.
+- After the grace window the **backend** must set `member.status = "kicked"`; the page then shows
+  "Đã bị xoá khỏi nhóm". The page only displays the rule — it does not remove anyone, and it no longer
+  uses `status: "warned"` / `warnedAt`.
+
+Scenarios for dev mocks: `?mock=fresh|active|met|soon|grace|kicked`.
+
 ## Setup
 
 ```bash
@@ -39,7 +55,7 @@ Because anyone can type any UID, the backend should decide how much to trust a n
 ### Dev mocks
 
 Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the backend. Switch states with
-`?mock=new|fresh|active|soon|warned|kicked|error` (default `new` shows the popup). Mocks only run under
+`?mock=new|fresh|active|met|soon|grace|kicked|error` (default `new` shows the popup). Mocks only run under
 `next dev`; production builds strip them.
 
 ## Layout
@@ -47,8 +63,9 @@ Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the bac
 ```
 app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
 components/ MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
-            Dashboard · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
+            Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
             LogoutButton
-lib/        api.ts (client fetchers) · format.ts (fmtUSDT, timeAgo, …) · status.ts (member state → pill/note)
+lib/        api.ts (client fetchers) · format.ts (fmtUSD, timeAgo, …) · premium.ts (cycle rule)
+            status.ts (member state → pill/note/alert)
             linkSession.ts (24h device link) · clipboard.ts · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
 ```

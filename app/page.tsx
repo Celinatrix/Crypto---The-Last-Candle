@@ -26,10 +26,8 @@ export default function Home() {
               <span className="members__title-vi">Khối lượng giao dịch 30 ngày của bạn.</span>
             </h2>
             <p className="members__lead">
-              Nhập UID BingX đã đăng ký qua link đối tác của cộng đồng cùng Gmail nhận thông báo để theo dõi khối lượng
-              từng ngày. Nếu khối
-              lượng 14 ngày gần nhất bằng 0, bạn sẽ nhận email cảnh báo; sau 24 giờ vẫn bằng 0, bạn sẽ bị xoá khỏi nhóm
-              Telegram.
+              Mỗi chu kỳ 14 ngày, tính từ ngày đăng ký, cần đạt tối thiểu 60.000$ khối lượng giao dịch. Từ ngày thứ 10
+              nếu chưa đủ, bạn sẽ thấy cảnh báo; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá khỏi nhóm.
             </p>
           </header>
 
@@ -45,13 +43,15 @@ export default function Home() {
                 </li>
                 <li className="rule">
                   <span className="rule__num num">02</span>
-                  <h3 className="rule__title">Kiểm tra hằng ngày</h3>
-                  <p className="rule__text">Khối lượng 14 ngày gần nhất bằng 0 sẽ kích hoạt email cảnh báo.</p>
+                  <h3 className="rule__title">60.000$ mỗi 14 ngày</h3>
+                  <p className="rule__text">Mỗi chu kỳ 14 ngày tính từ ngày đăng ký cần đạt tối thiểu 60.000$ khối lượng.</p>
                 </li>
                 <li className="rule">
                   <span className="rule__num num">03</span>
-                  <h3 className="rule__title">Sau 24 giờ</h3>
-                  <p className="rule__text">Vẫn không có giao dịch sau cảnh báo, bạn sẽ bị xoá khỏi nhóm Telegram.</p>
+                  <h3 className="rule__title">Ngày 10 &amp; gia hạn 24 giờ</h3>
+                  <p className="rule__text">
+                    Ngày 10 chưa đủ sẽ có cảnh báo. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
+                  </p>
                 </li>
               </ol>
             </div>

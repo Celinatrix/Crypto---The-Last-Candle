@@ -1,4 +1,5 @@
-import { fmtDate, fmtDateTime, toTime } from "./format";
+import { fmtDateTime, fmtDayFull, fmtUSD } from "./format";
+import { getCycleProgress, PREMIUM_RULE, type CycleProgress } from "./premium";
 import type { Member, VolumeSummary } from "./types";
 
 export type Tone = "ok" | "neutral" | "warn" | "danger";
@@ -8,80 +9,86 @@ export interface MemberState {
   tone: Tone;
   noteTitle: string;
   noteBody: string;
-  /** ms timestamp; only set for warned members */
+  /** Short on-page warning shown at the top of the card (day ≥ 10 or grace). */
+  alert?: string;
+  /** ms timestamp shown next to the pill (grace deadline) */
   deadline?: number;
+  progress: CycleProgress | null;
 }
 
-const DAY = 86_400_000;
-const REVIEW_WINDOW_DAYS = 14;
+const REQ = fmtUSD(PREMIUM_RULE.requiredUsd);
 
 export function getMemberState(member: Member, volume: VolumeSummary | null, now: number): MemberState {
+  const progress = volume ? getCycleProgress(member.joinedAt, volume.daily, now) : null;
+
   if (member.status === "kicked") {
     return {
       label: "Đã bị xoá khỏi nhóm",
       tone: "danger",
-      noteTitle: "Bạn đã bị xoá khỏi nhóm Telegram.",
-      noteBody:
-        "Tài khoản không có khối lượng giao dịch trong 14 ngày và đã quá 24 giờ kể từ email cảnh báo. Nếu muốn quay lại, hãy liên hệ quản trị viên cộng đồng.",
+      noteTitle: "Bạn đã bị xoá khỏi nhóm Premium.",
+      noteBody: `Chu kỳ trước không đạt ${REQ} và đã quá 24 giờ gia hạn. Nếu muốn quay lại, hãy liên hệ quản trị viên.`,
+      // No live target any more, so the progress card is hidden.
+      progress: null,
     };
   }
 
-  if (member.status === "warned") {
-    const warnedAt = member.warnedAt ? toTime(member.warnedAt) : NaN;
-    const deadline = Number.isFinite(warnedAt) ? warnedAt + DAY : undefined;
-    const tradedSince = (volume?.total14 ?? 0) > 0;
+  if (!progress) {
     return {
-      label: "Đã gửi cảnh báo",
-      tone: "warn",
-      deadline,
-      noteTitle: tradedSince
-        ? "Đã ghi nhận giao dịch mới."
-        : deadline
-          ? `Hãy giao dịch trước ${fmtDateTime(deadline)}.`
-          : "Hãy giao dịch càng sớm càng tốt.",
-      noteBody: tradedSince
-        ? "Khối lượng 14 ngày của bạn đã lớn hơn 0. Trạng thái cảnh báo sẽ được gỡ ở lần kiểm tra tiếp theo."
-        : `Email cảnh báo đã được gửi tới ${member.email}. Nếu khối lượng 14 ngày vẫn bằng 0 sau 24 giờ, bạn sẽ bị xoá khỏi nhóm. Dữ liệu BingX có thể trễ khoảng 1 ngày, vì vậy đừng đợi đến sát hạn.`,
-    };
-  }
-
-  const joined = toTime(member.joinedAt);
-  const reviewStarts = Number.isFinite(joined) ? joined + REVIEW_WINDOW_DAYS * DAY : 0;
-  const isNew = now < reviewStarts;
-
-  if (!volume) {
-    return {
-      label: "Thành viên mới",
+      label: "Đang chờ dữ liệu",
       tone: "neutral",
       noteTitle: "Đang chờ dữ liệu từ BingX.",
       noteBody:
         "UID đã được liên kết. Khối lượng giao dịch sẽ hiển thị sau lần đồng bộ tiếp theo, thường trong vòng 24 giờ.",
+      progress,
     };
   }
 
-  if (volume.total14 > 0) {
+  const p = progress;
+  const perDay = fmtUSD(p.perDay);
+
+  const g = p.grace;
+  if (g) {
     return {
-      label: "Đang hoạt động",
-      tone: "ok",
-      noteTitle: "Bạn đang đáp ứng quy định của nhóm.",
-      noteBody:
-        "Khối lượng 14 ngày gần nhất lớn hơn 0. Chỉ cần duy trì giao dịch đều đặn để giữ chỗ trong cộng đồng.",
+      label: "Gia hạn 24 giờ",
+      tone: "danger",
+      deadline: g.deadline,
+      alert: `Chu kỳ #${g.index} chưa đạt — cần thêm ${fmtUSD(g.remaining)} trước ${fmtDateTime(g.deadline)}.`,
+      noteTitle: `Gia hạn 24 giờ: cần thêm ${fmtUSD(g.remaining)}.`,
+      noteBody: `Chu kỳ #${g.index} đã kết thúc với ${fmtUSD(g.volume)} / ${REQ}. Nếu đến ${fmtDateTime(g.deadline)} vẫn chưa đủ, bạn sẽ bị xoá khỏi nhóm Premium.`,
+      progress,
     };
   }
 
-  if (isNew) {
-    return {
-      label: "Thành viên mới",
-      tone: "neutral",
-      noteTitle: "Chào mừng bạn đến với cộng đồng.",
-      noteBody: `Hệ thống bắt đầu xét khối lượng từ ngày ${fmtDate(reviewStarts)}. Hãy thực hiện giao dịch đầu tiên trên BingX trước thời điểm đó.`,
-    };
+  switch (p.phase) {
+    case "met":
+      return {
+        label: "Đã đạt yêu cầu",
+        tone: "ok",
+        noteTitle: `Bạn đã đạt ${REQ} cho chu kỳ #${p.index}.`,
+        noteBody: `Chu kỳ tiếp theo bắt đầu ngày ${fmtDayFull(nextDay(p.endDay))}. Tiếp tục giao dịch đều đặn để giữ chỗ trong nhóm Premium.`,
+        progress,
+      };
+    case "warning":
+      return {
+        label: "Sắp hết hạn",
+        tone: "warn",
+        alert: `Còn ${p.daysLeft} ngày — cần thêm ${fmtUSD(p.remaining)} (khoảng ${perDay}/ngày).`,
+        noteTitle: `Cảnh báo: còn ${p.daysLeft} ngày, cần thêm ${fmtUSD(p.remaining)}.`,
+        noteBody: `Bạn đang ở ngày ${p.dayOfCycle}/${PREMIUM_RULE.cycleDays} và chưa đạt ${REQ}. Hãy giao dịch khoảng ${perDay} mỗi ngày để kịp hạn ${fmtDateTime(p.deadline)}. Quá hạn sẽ có thêm 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.`,
+        progress,
+      };
+    default:
+      return {
+        label: "Đang hoạt động",
+        tone: "ok",
+        noteTitle: `Còn ${p.daysLeft} ngày để đạt ${REQ}.`,
+        noteBody: `Bạn cần thêm ${fmtUSD(p.remaining)}, trung bình khoảng ${perDay} mỗi ngày. Từ ngày ${PREMIUM_RULE.warnFromDay} của chu kỳ, nếu chưa đủ bạn sẽ nhận cảnh báo.`,
+        progress,
+      };
   }
+}
 
-  return {
-    label: "Sắp bị cảnh báo",
-    tone: "warn",
-    noteTitle: "Chưa có giao dịch nào trong 14 ngày gần nhất.",
-    noteBody: `Ở lần kiểm tra tới, bạn sẽ nhận email cảnh báo tại ${member.email}. Một lệnh giao dịch bất kỳ trên BingX là đủ để giữ trạng thái hoạt động.`,
-  };
+function nextDay(day: string): string {
+  const t = Date.parse(`${day}T00:00:00Z`) + 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
 }

@@ -6,21 +6,24 @@ import type { DailyVolume } from "@/lib/types";
 
 const VIEW_W = 300;
 const VIEW_H = 100;
-const BAND_DAYS = 14;
 const MIN_BAR = 1.6; // zero-volume stub height, in viewBox units
 
 interface Props {
   daily: DailyVolume[];
+  /** "YYYY-MM-DD": highlight days from here to the newest bar (the cycle under review). */
+  bandFrom?: string;
+  bandLabel?: string;
 }
 
-export default function VolumeChart({ daily }: Props) {
+export default function VolumeChart({ daily, bandFrom, bandLabel = "Chu kỳ hiện tại" }: Props) {
   const [active, setActive] = useState<number | null>(null);
   const descId = useId();
   const n = daily.length;
   if (n === 0) return null;
 
-  const bandN = Math.min(BAND_DAYS, n);
-  const bandStart = n - bandN;
+  const firstInBand = bandFrom ? daily.findIndex((d) => d.day >= bandFrom) : -1;
+  const bandStart = firstInBand === -1 ? n : firstInBand;
+  const bandN = n - bandStart;
   const max = Math.max(0, ...daily.map((d) => d.volume));
   const slot = VIEW_W / n;
   const barW = slot * 0.64;
@@ -51,8 +54,12 @@ export default function VolumeChart({ daily }: Props) {
       <figcaption className="chart__head">
         <span className="label">Khối lượng theo ngày</span>
         <span className="chart__legend">
-          <span className="chart__swatch chart__swatch--band" aria-hidden="true" />
-          {BAND_DAYS} ngày được xét
+          {bandN > 0 && (
+            <>
+              <span className="chart__swatch chart__swatch--band" aria-hidden="true" />
+              {bandLabel}
+            </>
+          )}
           {zeroDays > 0 && (
             <>
               <span className="chart__swatch chart__swatch--zero" aria-hidden="true" />
@@ -115,14 +122,17 @@ export default function VolumeChart({ daily }: Props) {
 
       <div className="chart__axis num" aria-hidden="true">
         <span>{first && fmtDay(first.day)}</span>
-        <span style={{ left: `${(bandStart / n) * 100}%` }} className="chart__axis-band">
-          {bandFirst && fmtDay(bandFirst.day)}
-        </span>
+        {/* Skip the band label when it would collide with the first/last date. */}
+        {bandFirst && bandStart > 3 && bandStart < n - 4 && (
+          <span style={{ left: `${(bandStart / n) * 100}%` }} className="chart__axis-band">
+            {fmtDay(bandFirst.day)}
+          </span>
+        )}
         <span>{last && fmtDay(last.day)}</span>
       </div>
 
       <p id={descId} className="sr-only">
-        {`Từ ${first ? fmtDay(first.day) : ""} đến ${last ? fmtDay(last.day) : ""}. Cao nhất ${fmtUSDT(max)}. ${zeroDays} trên ${bandN} ngày được xét không có giao dịch.`}
+        {`Từ ${first ? fmtDay(first.day) : ""} đến ${last ? fmtDay(last.day) : ""}. Cao nhất ${fmtUSDT(max)}. ${zeroDays} trên ${bandN} ngày trong chu kỳ không có giao dịch.`}
       </p>
     </figure>
   );

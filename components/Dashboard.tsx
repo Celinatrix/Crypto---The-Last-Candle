@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { fmtAmount, fmtDateTime, fmtDateTimeShort, timeAgo } from "@/lib/format";
+import { fmtDateTime, fmtDateTimeShort, timeAgo } from "@/lib/format";
 import { getMemberState } from "@/lib/status";
 import type { Member, VolumeSummary } from "@/lib/types";
 import { useNow } from "@/lib/useNow";
 import { useMember } from "./MemberProvider";
+import PremiumProgress from "./PremiumProgress";
 import RegisterForm from "./RegisterForm";
 import VolumeChart from "./VolumeChart";
 
@@ -73,7 +74,6 @@ interface MemberViewProps {
 function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewProps) {
   const now = useNow();
   const s = getMemberState(member, volume, now);
-  const zero14 = volume !== null && volume.total14 <= 0;
 
   return (
     <section className="card card--dash" aria-labelledby="dash-title">
@@ -103,19 +103,21 @@ function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewP
         </div>
       )}
 
-      <div className="stats">
-        <div className="stat stat--main">
-          <span className="label">Khối lượng 30 ngày</span>
-          <Amount className="stat__value stat__value--lg" value={volume?.total30} />
+      {s.alert && (
+        <div className={`alert alert--${s.tone === "danger" ? "danger" : "warn"} alert--strong`} role="alert">
+          <span aria-hidden="true">⚠ </span>
+          {s.alert}
         </div>
-        <div className="stat">
-          <span className="label">14 ngày gần nhất</span>
-          <Amount className={`stat__value${zero14 ? " is-danger" : ""}`} value={volume?.total14} />
-        </div>
-      </div>
+      )}
+
+      {s.progress && <PremiumProgress progress={s.progress} tone={s.tone} now={now} />}
 
       {volume && volume.daily.length > 0 ? (
-        <VolumeChart daily={volume.daily} />
+        <VolumeChart
+          daily={volume.daily}
+          bandFrom={s.progress ? (s.progress.grace?.startDay ?? s.progress.startDay) : undefined}
+          bandLabel={s.progress ? `Chu kỳ #${s.progress.grace?.index ?? s.progress.index}` : undefined}
+        />
       ) : (
         <div className="chart chart--empty">Biểu đồ sẽ hiển thị khi có dữ liệu khối lượng.</div>
       )}
@@ -144,16 +146,6 @@ function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewP
   );
 }
 
-function Amount({ value, className }: { value: number | undefined; className: string }) {
-  if (value === undefined) return <span className={`${className} num`}>—</span>;
-  return (
-    <span className={`${className} num`}>
-      {fmtAmount(value)}
-      <span className="stat__unit"> USDT</span>
-    </span>
-  );
-}
-
 function MailIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -173,10 +165,7 @@ export function CardSkeleton() {
         </div>
         <span className="skeleton" style={{ width: 120, height: 28, borderRadius: 999 }} />
       </div>
-      <div className="stats">
-        <span className="skeleton" style={{ height: 92 }} />
-        <span className="skeleton" style={{ height: 92 }} />
-      </div>
+      <span className="skeleton" style={{ height: 196 }} />
       <span className="skeleton" style={{ height: 200 }} />
       <span className="skeleton" style={{ height: 64 }} />
     </section>

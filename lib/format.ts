@@ -18,6 +18,19 @@ export function fmtUSDT(value: number): string {
   return `${fmtAmount(value)} USDT`;
 }
 
+const usdFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+
+/** 75717.4 → "$75,717" */
+export function fmtUSD(value: number): string {
+  return `$${usdFormatter.format(Number.isFinite(value) ? Math.round(value) : 0)}`;
+}
+
+/** "2026-10-07" → "07/10/2026" */
+export function fmtDayFull(day: string): string {
+  const [y, m, d] = day.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : day;
+}
+
 /** 12345 → "12.3K" */
 export function fmtCompact(value: number): string {
   return compactFormatter.format(Number.isFinite(value) ? value : 0);
