@@ -1588,6 +1588,231 @@ input {
   text-align: center;
 }
 
+.news__list[hidden] {
+  display: none;
+}
+
+/* Tabs inside the news panel */
+.tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  flex: 0 0 auto;
+}
+
+.tabs__tab {
+  border: 0;
+  background: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tabs__tab:hover {
+  color: #fff;
+}
+
+.tabs__tab.is-on {
+  background: #fff;
+  color: #000;
+}
+
+.news__head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.news__head .news__channel {
+  margin-left: auto;
+}
+
+@media (max-width: 420px) {
+  .tabs__tab {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+
+  .news__head {
+    padding: 14px 14px;
+    gap: 8px;
+  }
+}
+
+/* ---------- Economic calendar (ForexFactory red folder) ---------- */
+
+.cal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-80);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chip.is-on {
+  color: #000;
+  background: #fff;
+  box-shadow: none;
+}
+
+.cal__day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal__date {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.cal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ev {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.ev--soon {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.6);
+  animation: soon-pulse 2.2s ease-in-out infinite;
+}
+
+.ev--out {
+  opacity: 0.6;
+}
+
+.ev--skeleton {
+  align-items: center;
+}
+
+.ev__time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 46px;
+}
+
+.ev__time time {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ev__cur {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-80);
+}
+
+.ev__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ev__title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ForexFactory-style red folder marker */
+.ev__folder {
+  flex-shrink: 0;
+  width: 12px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 2px 3px 2px 2px;
+  background: var(--danger);
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+.ev__nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ev__when {
+  font-size: 12px;
+  color: var(--text-80);
+}
+
+.ev__when.is-soon {
+  color: #ffb3b3;
+  font-weight: 600;
+}
+
+.cal__foot {
+  font-size: 11px;
+  color: var(--faint);
+  text-align: center;
+  padding-top: 4px;
+}
+
+@keyframes soon-pulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.6), 0 0 0 rgba(255, 107, 107, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.95), 0 0 18px rgba(255, 107, 107, 0.25);
+  }
+}
+
 /* ---------- Skeleton ---------- */
 
 .skeleton {

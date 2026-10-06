@@ -1,6 +1,6 @@
 import { DEV_MOCKS } from "./env";
 
-import type { MeResponse, NewsResponse, RegisterResult } from "./types";
+import type { CalendarResponse, MeResponse, NewsResponse, RegisterResult } from "./types";
 
 // Each mock branch repeats the inline NODE_ENV check so webpack can drop the
 // dynamic import (and the mock chunk) from production builds.
@@ -72,6 +72,16 @@ export async function fetchNews(signal?: AbortSignal): Promise<NewsResponse> {
     throw new Error(errorOf(body) ?? "Không tải được tin tức.");
   }
   return body as unknown as NewsResponse;
+}
+
+/** High-impact economic events of this week, served by our own /api/calendar proxy. */
+export async function fetchCalendar(signal?: AbortSignal): Promise<CalendarResponse> {
+  const res = await fetch("/api/calendar", { signal });
+  const body = await readJson(res);
+  if (!isRecord(body) || !Array.isArray(body.events)) {
+    throw new Error(errorOf(body) ?? "Không tải được lịch kinh tế.");
+  }
+  return body as unknown as CalendarResponse;
 }
 
 /** Clears this browser's member cookie (the UID stays registered on the backend). */

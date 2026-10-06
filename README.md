@@ -51,10 +51,20 @@ member with its own httpOnly cookie:
 | `POST /api/register` `{ uid, email }` | Validates the UID against the partner link, then **sets an httpOnly member cookie** (`Max-Age=86400`). Returns `{ ok: true }` or `{ error }` with 400/403/409/429/502. |
 | `GET /api/me` | `{ member: null }` (or 401) when the browser has no member cookie; otherwise `{ member, volume, error? }`. |
 | `GET /api/news` | `{ channel, posts, error? }` |
+| `GET /api/calendar` | **Served by this app** (`app/api/calendar/route.ts`): this week's high-impact ("red folder") events from ForexFactory → `{ source, events: [{ id, title, currency, time, forecast, previous }], fetchedAt, error? }`. |
 | `POST /api/auth/logout` | Clears the member cookie ("Đăng xuất"). |
 
 Because anyone can type any UID, the backend should decide how much to trust a new registration
 (e.g. require the Gmail to match a previous registration for that UID, or confirm by email).
+
+### Economic calendar
+
+forexfactory.com has no public API and blocks automated requests (Cloudflare), so `/api/calendar` reads the
+weekly JSON export ForexFactory publishes at `nfs.faireconomy.media/ff_calendar_thisweek.json`, keeps only
+`impact: "High"`, and caches it for 15 minutes server-side (the feed rate-limits frequent callers and sends no
+CORS headers, so the browser cannot call it directly). Limits of that feed: current week only, forecast and
+previous values but **no actual results**. The sidebar's "Lịch đỏ" tab shows upcoming events with a
+countdown, highlights anything within the next hour, and keeps released events for 30 minutes as "Vừa ra".
 
 ### Dev mocks
 
@@ -66,7 +76,7 @@ Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the bac
 
 ```
 app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
-components/ MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
+components/ NewsPanel (tabs) · EconomicCalendar · MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
             Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
             LogoutButton
 lib/        api.ts (client fetchers) · format.ts (fmtUSD, timeAgo, …) · premium.ts (cycle rule)

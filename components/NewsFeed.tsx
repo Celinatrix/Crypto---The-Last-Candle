@@ -19,7 +19,8 @@ const safeHref = (url: string) => (/^https:\/\//i.test(url) ? url : undefined);
 
 const byNewest = (a: NewsPost, b: NewsPost) => toTime(b.date) - toTime(a.date);
 
-export default function NewsFeed() {
+/** Telegram channel posts. Rendered inside NewsPanel's "Tin cộng đồng" tab. */
+export default function NewsFeed({ onChannel }: { onChannel?: (channel: string | null) => void }) {
   const [feed, setFeed] = useState<FeedState>({ channel: null, posts: null, error: null });
   const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
   const seenRef = useRef<Set<string> | null>(null);
@@ -81,45 +82,35 @@ export default function NewsFeed() {
 
   const { channel, posts, error } = feed;
 
+  useEffect(() => {
+    onChannel?.(channel);
+  }, [channel, onChannel]);
+
   return (
-    <section className="news" aria-labelledby="news-title">
-      <header className="news__head">
-        <span className="live-dot" aria-hidden="true" />
-        <h3 id="news-title" className="news__title">
-          Tin tức cộng đồng
-        </h3>
-        {channel && (
-          <a className="news__channel" href={`https://t.me/${channel}`} target="_blank" rel="noopener noreferrer">
-            @{channel} ↗
-          </a>
-        )}
-      </header>
+    <>
+      {posts === null && <NewsSkeleton />}
 
-      <div className="news__list" aria-busy={posts === null} aria-live="polite">
-        {posts === null && <NewsSkeleton />}
+      {posts !== null && posts.length === 0 && (
+        <div className="news__empty">
+          <p>{error ?? "Chưa có bài viết nào."}</p>
+          {error && (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => void load()}>
+              Thử lại
+            </button>
+          )}
+        </div>
+      )}
 
-        {posts !== null && posts.length === 0 && (
-          <div className="news__empty">
-            <p>{error ?? "Chưa có bài viết nào."}</p>
-            {error && (
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => void load()}>
-                Thử lại
-              </button>
-            )}
-          </div>
-        )}
+      {posts !== null && posts.length > 0 && (
+        <ul className="news__posts">
+          {posts.map((p) => (
+            <PostCard key={String(p.id)} post={p} now={now} fresh={fresh.has(String(p.id))} />
+          ))}
+        </ul>
+      )}
 
-        {posts !== null && posts.length > 0 && (
-          <ul className="news__posts">
-            {posts.map((p) => (
-              <PostCard key={String(p.id)} post={p} now={now} fresh={fresh.has(String(p.id))} />
-            ))}
-          </ul>
-        )}
-
-        {error && posts !== null && posts.length > 0 && <p className="news__stale">Đang hiển thị dữ liệu cũ · {error}</p>}
-      </div>
-    </section>
+      {error && posts !== null && posts.length > 0 && <p className="news__stale">Đang hiển thị dữ liệu cũ · {error}</p>}
+    </>
   );
 }
 

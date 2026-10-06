@@ -51,3 +51,22 @@ export interface NewsResponse {
 }
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
+
+/** A high-impact ("red folder") economic calendar event. */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  /** Currency code as listed by ForexFactory, e.g. "USD" ("All" for global events) */
+  currency: string;
+  /** ISO timestamp (UTC) */
+  time: string;
+  forecast: string | null;
+  previous: string | null;
+}
+
+export interface CalendarResponse {
+  source: "ForexFactory";
+  events: CalendarEvent[];
+  fetchedAt: string;
+  error?: string;
+}

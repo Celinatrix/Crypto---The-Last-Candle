@@ -3,7 +3,7 @@ import Hero from "@/components/Hero";
 import LinkModal from "@/components/LinkModal";
 import ContactSection from "@/components/ContactSection";
 import { MemberProvider } from "@/components/MemberProvider";
-import NewsFeed from "@/components/NewsFeed";
+import NewsPanel from "@/components/NewsPanel";
 import PremiumSection from "@/components/PremiumSection";
 import QuoteSection from "@/components/QuoteSection";
 import SiteNav from "@/components/SiteNav";
@@ -60,7 +60,7 @@ export default function Home() {
             </div>
 
             <aside className="sidebar" id="news">
-              <NewsFeed />
+              <NewsPanel />
             </aside>
           </div>
         </section>
