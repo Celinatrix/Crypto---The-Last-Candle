@@ -2,6 +2,7 @@
  * DEV-ONLY mock backend. Imported dynamically behind `DEV_MOCKS`, so it never ships
  * in a production bundle. Pick a scenario with `?mock=…` in the URL.
  */
+import { readLink } from "./linkSession";
 import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "./types";
 
 export type MockScenario = "new" | "fresh" | "active" | "soon" | "warned" | "kicked" | "error";
@@ -16,7 +17,6 @@ const DAY = 86_400_000;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const scenario = () => parseScenario(new URLSearchParams(window.location.search).get("mock"));
 
-let registered: { uid: string; email: string } | null = null;
 
 function isoDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -35,13 +35,14 @@ function buildDaily(zeroLast: number, seed: number) {
 
 export async function mockMe(): Promise<MeResponse> {
   await wait(700);
+  // Stand-in for the backend member cookie: the device's saved link.
+  const link = readLink();
+  if (!link) return { member: null };
   const s = scenario();
-  if (s === "new" && !registered) return { member: null };
-  if (s === "error") return registered ? meFor("active") : { member: null };
-  return meFor(s);
+  return meFor(s === "new" || s === "error" ? "active" : s, link);
 }
 
-function meFor(s: MockScenario): MeResponse {
+function meFor(s: MockScenario, link: { uid: string; email: string }): MeResponse {
   const now = Date.now();
   const zeroLast = s === "soon" || s === "warned" || s === "kicked" || s === "fresh" ? 14 : 0;
   const daily = buildDaily(s === "fresh" ? 30 : zeroLast, 3);
@@ -49,8 +50,8 @@ function meFor(s: MockScenario): MeResponse {
   const total14 = daily.slice(-14).reduce((a, d) => a + d.volume, 0);
   return {
     member: {
-      uid: registered?.uid ?? "28471936",
-      email: registered?.email ?? "minh.trader@gmail.com",
+      uid: link.uid,
+      email: link.email,
       status: s === "warned" ? "warned" : s === "kicked" ? "kicked" : "active",
       joinedAt: new Date(now - (s === "fresh" ? 5 : 64) * DAY).toISOString(),
       warnedAt: s === "warned" ? new Date(now - 7 * 3_600_000).toISOString() : null,
@@ -64,12 +65,11 @@ function meFor(s: MockScenario): MeResponse {
   };
 }
 
-export async function mockRegister(uid: string, email: string): Promise<RegisterResult> {
+export async function mockRegister(): Promise<RegisterResult> {
   await wait(1200);
-  if (scenario() === "error" && !registered) {
+  if (scenario() === "error") {
     return { ok: false, error: "UID này không đăng ký BingX qua link đối tác của cộng đồng." };
   }
-  registered = { uid, email };
   return { ok: true };
 }
 

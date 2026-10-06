@@ -7,7 +7,7 @@ import RegisterForm from "./RegisterForm";
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export default function LinkModal() {
-  const { linkOpen, closeLink, reload } = useMember();
+  const { linkOpen, closeLink, markLinked } = useMember();
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -46,9 +46,9 @@ export default function LinkModal() {
 
   if (!linkOpen) return null;
 
-  function handleSuccess() {
+  function handleSuccess(uid: string, email: string) {
     closeLink();
-    reload();
+    markLinked(uid, email);
     window.setTimeout(() => document.getElementById("member")?.scrollIntoView({ behavior: "smooth" }), 50);
   }
 

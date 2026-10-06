@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { logout } from "@/lib/api";
 import { DEV_MOCKS } from "@/lib/env";
+import { useMember } from "./MemberProvider";
 
 export default function LogoutButton() {
   const [pending, setPending] = useState(false);
+  const { signOut } = useMember();
 
   async function handleClick() {
     setPending(true);
     try {
-      await logout();
+      await signOut();
     } finally {
       window.location.assign(DEV_MOCKS ? "/?mock=new" : "/");
     }

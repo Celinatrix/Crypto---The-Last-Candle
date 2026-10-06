@@ -854,6 +854,16 @@ input {
   color: var(--danger);
 }
 
+.form__required {
+  font-size: 13px;
+  color: var(--faint);
+  margin-bottom: -6px;
+}
+
+.form__required.is-warn {
+  color: var(--warn);
+}
+
 .form__actions {
   display: flex;
   flex-wrap: wrap;

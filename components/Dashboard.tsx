@@ -10,12 +10,12 @@ import RegisterForm from "./RegisterForm";
 import VolumeChart from "./VolumeChart";
 
 export default function Dashboard() {
-  const { state, reload } = useMember();
+  const { state, reload, markLinked, expiresAt } = useMember();
   const [editing, setEditing] = useState(false);
 
-  function handleSaved() {
+  function handleSaved(uid: string, email: string) {
     setEditing(false);
-    reload();
+    markLinked(uid, email);
   }
 
   if (state.kind === "loading") return <CardSkeleton />;
@@ -51,17 +51,26 @@ export default function Dashboard() {
     );
   }
 
-  return <MemberView member={data.member} volume={data.volume} apiError={data.error} onEdit={() => setEditing(true)} />;
+  return (
+    <MemberView
+      member={data.member}
+      volume={data.volume}
+      apiError={data.error}
+      expiresAt={expiresAt}
+      onEdit={() => setEditing(true)}
+    />
+  );
 }
 
 interface MemberViewProps {
   member: Member;
   volume: VolumeSummary | null;
   apiError?: string;
+  expiresAt: number | null;
   onEdit: () => void;
 }
 
-function MemberView({ member, volume, apiError, onEdit }: MemberViewProps) {
+function MemberView({ member, volume, apiError, expiresAt, onEdit }: MemberViewProps) {
   const now = useNow();
   const s = getMemberState(member, volume, now);
   const zero14 = volume !== null && volume.total14 <= 0;
@@ -122,6 +131,11 @@ function MemberView({ member, volume, apiError, onEdit }: MemberViewProps) {
           {member.email}
         </span>
         {volume && <span className="dash__updated">Cập nhật {timeAgo(volume.updatedAt, now)}</span>}
+        {expiresAt !== null && (
+          <span className="dash__session" title="Sau thời điểm này, thiết bị sẽ yêu cầu nhập lại UID và Gmail.">
+            Lưu trên thiết bị này đến <span className="num">{fmtDateTimeShort(expiresAt)}</span>
+          </span>
+        )}
         <button type="button" className="link-btn" onClick={onEdit}>
           Sửa UID / email
         </button>

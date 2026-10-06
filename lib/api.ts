@@ -42,7 +42,7 @@ const REGISTER_FALLBACK: Record<number, string> = {
 };
 
 export async function registerMember(uid: string, email: string): Promise<RegisterResult> {
-  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./mocks")).mockRegister(uid, email);
+  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./mocks")).mockRegister();
 
   let res: Response;
   try {

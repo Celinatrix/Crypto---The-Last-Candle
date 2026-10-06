@@ -7,7 +7,7 @@ interface Props {
   mode: "new" | "edit";
   initialUid?: string;
   initialEmail?: string;
-  onSuccess: () => void;
+  onSuccess: (uid: string, email: string) => void;
   onCancel?: () => void;
   cancelLabel?: string;
   titleId?: string;
@@ -37,18 +37,21 @@ export default function RegisterForm({
   const uidInvalid = touched && !UID_RE.test(uid);
   const emailInvalid = touched && !GMAIL_RE.test(email.trim());
   const editing = mode === "edit";
+  // Both fields are required: with only one filled in, the form cannot be submitted.
+  const bothFilled = uid.length > 0 && email.trim().length > 0;
+  const partial = !bothFilled && (uid.length > 0 || email.trim().length > 0);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setTouched(true);
     setError(null);
     const cleanEmail = email.trim().toLowerCase();
-    if (!UID_RE.test(uid) || !GMAIL_RE.test(cleanEmail)) return;
+    if (!bothFilled || !UID_RE.test(uid) || !GMAIL_RE.test(cleanEmail)) return;
 
     setSubmitting(true);
     try {
       const result = await registerMember(uid, cleanEmail);
-      if (result.ok) onSuccess();
+      if (result.ok) onSuccess(uid, cleanEmail);
       else setError(result.error);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.");
@@ -123,8 +126,21 @@ export default function RegisterForm({
         </div>
       )}
 
+      <p id={`${ids}-required`} className={`form__required${partial ? " is-warn" : ""}`} aria-live="polite">
+        {partial
+          ? uid.length === 0
+            ? "Còn thiếu UID BingX — cần nhập đủ cả hai để tiếp tục."
+            : "Còn thiếu Gmail — cần nhập đủ cả hai để tiếp tục."
+          : "Bắt buộc nhập cả UID BingX và Gmail."}
+      </p>
+
       <div className="form__actions">
-        <button type="submit" className="btn btn--primary" disabled={submitting}>
+        <button
+          type="submit"
+          className="btn btn--primary"
+          disabled={submitting || !bothFilled}
+          aria-describedby={`${ids}-required`}
+        >
           {submitting && <span className="spinner" aria-hidden="true" />}
           {submitting ? "Đang kiểm tra với BingX…" : "Kiểm tra khối lượng"}
         </button>
