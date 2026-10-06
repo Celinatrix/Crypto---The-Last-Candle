@@ -47,7 +47,8 @@ Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the bac
 ```
 app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
 components/ MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
-            Dashboard · RegisterForm · VolumeChart · NewsFeed · QuoteSection · ContactSection · LogoutButton
+            Dashboard · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
+            LogoutButton
 lib/        api.ts (client fetchers) · format.ts (fmtUSDT, timeAgo, …) · status.ts (member state → pill/note)
-            linkSession.ts (24h device link) · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
+            linkSession.ts (24h device link) · clipboard.ts · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
 ```

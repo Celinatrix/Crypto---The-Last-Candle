@@ -4,6 +4,7 @@ import LinkModal from "@/components/LinkModal";
 import ContactSection from "@/components/ContactSection";
 import { MemberProvider } from "@/components/MemberProvider";
 import NewsFeed from "@/components/NewsFeed";
+import PremiumSection from "@/components/PremiumSection";
 import QuoteSection from "@/components/QuoteSection";
 import SiteNav from "@/components/SiteNav";
 
@@ -61,6 +62,7 @@ export default function Home() {
           </div>
         </section>
 
+        <PremiumSection />
         <QuoteSection />
         <ContactSection />
 

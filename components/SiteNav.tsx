@@ -4,13 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import LogoutButton from "./LogoutButton";
 import { useLinkedMember, useMember } from "./MemberProvider";
 
-const LINKS = [
+interface NavLink {
+  href: string;
+  label: string;
+  accent?: boolean;
+}
+
+const LINKS: readonly NavLink[] = [
   { href: "#member", label: "Khối lượng" },
+  { href: "#premium", label: "Tham gia nhóm Premium - Signal", accent: true },
   { href: "#news", label: "Tin tức" },
   { href: "#rules", label: "Quy định" },
   { href: "#manifesto", label: "Cộng đồng" },
   { href: "#contact", label: "Liên hệ" },
-] as const;
+];
 
 export default function SiteNav() {
   const { state, openLink } = useMember();
@@ -40,7 +47,7 @@ export default function SiteNav() {
         toggleRef.current?.focus();
       }
     };
-    const onResize = () => window.innerWidth >= 1100 && setOpen(false);
+    const onResize = () => window.innerWidth >= 1280 && setOpen(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
     return () => {
@@ -61,7 +68,7 @@ export default function SiteNav() {
 
         <nav className="nav__links" aria-label="Điều hướng chính">
           {LINKS.map((l) => (
-            <a key={l.href} href={l.href}>
+            <a key={l.href} href={l.href} className={l.accent ? "is-accent" : undefined}>
               {l.label}
             </a>
           ))}
@@ -109,6 +116,7 @@ export default function SiteNav() {
           {LINKS.map((l, i) => (
             <a
               key={l.href}
+              className={l.accent ? "is-accent" : undefined}
               ref={i === 0 ? firstLinkRef : undefined}
               href={l.href}
               onClick={close}

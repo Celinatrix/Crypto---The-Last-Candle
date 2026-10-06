@@ -332,10 +332,19 @@ input {
 
 .nav__links {
   display: flex;
-  gap: 48px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  gap: 40px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.nav__links a.is-accent,
+.menu__links a.is-accent {
+  color: var(--ice);
+}
+
+.nav__links a.is-accent:hover,
+.menu__links a.is-accent:hover {
+  color: #fff;
 }
 
 .nav__links a {
@@ -1459,6 +1468,174 @@ input {
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
+/* ---------- Premium signal ---------- */
+
+.premium {
+  position: relative;
+  padding: 104px 48px 120px;
+  background: linear-gradient(180deg, var(--night) 0%, #06182b 50%, var(--night) 100%);
+  overflow: hidden;
+}
+
+.premium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(760px 420px at 15% 50%, rgba(169, 220, 236, 0.08), transparent 70%),
+    radial-gradient(640px 380px at 90% 90%, rgba(32, 101, 142, 0.22), transparent 70%);
+}
+
+.premium__intro {
+  position: relative;
+  max-width: 1240px;
+  margin: 0 auto 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.premium__title {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-weight: 400;
+}
+
+.premium__title .font-instrument {
+  font-size: clamp(40px, 6vw, 76px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+}
+
+.premium__title em {
+  font-style: italic;
+  color: var(--ice);
+}
+
+.premium__title-vi {
+  font-size: clamp(15px, 1.6vw, 18px);
+  color: var(--text-80);
+}
+
+.premium__lead {
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.premium__steps {
+  position: relative;
+  max-width: 1240px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.step {
+  border-radius: var(--radius);
+  background-color: var(--glass);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.step__head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.step__check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #04140e;
+  background: var(--ok);
+  box-shadow: 0 0 16px rgba(142, 230, 192, 0.35);
+}
+
+.step__num {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--ice);
+}
+
+.step__title {
+  grid-column: 1 / -1;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.step__text {
+  color: var(--text-80);
+}
+
+.step__text strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.step__note {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.step__note strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.step__link {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.step__badge {
+  margin-top: auto;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ok);
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 1px rgba(142, 230, 192, 0.35);
+}
+
+.step__actions {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.step__actions .pill-btn,
+.step__actions .btn {
+  padding: 12px 22px;
+  min-height: 44px;
+}
+
+.step__copy {
+  margin-top: -4px;
+}
+
 /* ---------- Section 2: Quote (parallax) ---------- */
 
 .quote {
@@ -1847,14 +2024,14 @@ input {
   }
 }
 
-@media (max-width: 1279px) {
+@media (max-width: 1439px) {
   .nav__links {
-    gap: 32px;
+    gap: 28px;
   }
 }
 
-/* Five links + the UID chip need ~1100px; below that use the hamburger menu. */
-@media (max-width: 1099px) {
+/* Six links + the UID chip need ~1280px; below that use the hamburger menu. */
+@media (max-width: 1279px) {
   .nav__links,
   .nav__right {
     display: none;
@@ -1866,6 +2043,11 @@ input {
 }
 
 @media (max-width: 920px) {
+  .premium__steps {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+  }
+
   .contact__list {
     grid-template-columns: minmax(0, 1fr);
     max-width: 520px;
@@ -1904,6 +2086,14 @@ input {
 
   .contact {
     padding: 80px 16px 72px;
+  }
+
+  .premium {
+    padding: 80px 16px 88px;
+  }
+
+  .step {
+    padding: 22px;
   }
 
   .members__intro {
