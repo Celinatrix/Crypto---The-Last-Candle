@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLinkedMember, useMember } from "./MemberProvider";
 
 const VIDEO_SRC =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260613_180732_a54afbf6-b30d-470e-861f-669871f09f67.mp4";
 
-export default function Hero({ loggedIn }: { loggedIn: boolean }) {
+export default function Hero() {
+  const { state, openLink } = useMember();
+  const linked = useLinkedMember() !== null;
+  const needsLink = state.kind === "ready" && !linked;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
 
@@ -43,12 +47,18 @@ export default function Hero({ loggedIn }: { loggedIn: boolean }) {
           <span lang="en">Steady hands. Lasting volume.</span>
         </h1>
         <p className="hero__sub">
-          Khối lượng giao dịch <strong>30 ngày</strong> của bạn, trong một nơi yên tĩnh. Đăng nhập Telegram, liên kết
-          UID BingX và theo dõi mỗi ngày.
+          Khối lượng giao dịch <strong>30 ngày</strong> của bạn, trong một nơi yên tĩnh. Liên kết UID BingX và Gmail
+          để theo dõi mỗi ngày.
         </p>
-        <a className="pill-btn hero__cta" href="#member">
-          {loggedIn ? "Xem khối lượng của bạn" : "Đăng nhập với Telegram"}
-        </a>
+        {needsLink ? (
+          <button type="button" className="pill-btn hero__cta" onClick={openLink}>
+            Liên kết UID BingX
+          </button>
+        ) : (
+          <a className="pill-btn hero__cta" href="#member">
+            Xem khối lượng của bạn
+          </a>
+        )}
       </div>
 
       <button

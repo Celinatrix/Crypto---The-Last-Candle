@@ -2,12 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import LogoutButton from "./LogoutButton";
-
-export interface NavUser {
-  label: string;
-  photoUrl: string | null;
-  initial: string;
-}
+import { useLinkedMember, useMember } from "./MemberProvider";
 
 const LINKS = [
   { href: "#member", label: "Khối lượng" },
@@ -16,7 +11,11 @@ const LINKS = [
   { href: "#manifesto", label: "Cộng đồng" },
 ] as const;
 
-export default function SiteNav({ user }: { user: NavUser | null }) {
+export default function SiteNav() {
+  const { state, openLink } = useMember();
+  const member = useLinkedMember();
+  const uid = member ? String(member.uid) : null;
+  const notLinked = state.kind === "ready" && !member;
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
@@ -68,10 +67,16 @@ export default function SiteNav({ user }: { user: NavUser | null }) {
         </nav>
 
         <div className="nav__right">
-          {user ? <UserChip user={user} /> : (
-            <a className="pill-btn pill-btn--sm" href="#member">
-              Đăng nhập
-            </a>
+          {uid && (
+            <div className="user">
+              <UidChip uid={uid} />
+              <LogoutButton />
+            </div>
+          )}
+          {notLinked && (
+            <button type="button" className="pill-btn pill-btn--sm" onClick={openLink}>
+              Liên kết UID
+            </button>
           )}
         </div>
 
@@ -113,15 +118,23 @@ export default function SiteNav({ user }: { user: NavUser | null }) {
           ))}
         </nav>
         <div className="menu__foot" style={{ transitionDelay: open ? "450ms" : "0ms" }}>
-          {user ? (
+          {uid && (
             <>
-              <UserChip user={user} withLogout={false} />
+              <UidChip uid={uid} />
               <LogoutButton />
             </>
-          ) : (
-            <a className="pill-btn" href="#member" onClick={close}>
-              Đăng nhập với Telegram
-            </a>
+          )}
+          {notLinked && (
+            <button
+              type="button"
+              className="pill-btn"
+              onClick={() => {
+                close();
+                openLink();
+              }}
+            >
+              Liên kết UID BingX
+            </button>
           )}
         </div>
       </div>
@@ -129,25 +142,11 @@ export default function SiteNav({ user }: { user: NavUser | null }) {
   );
 }
 
-function UserChip({ user, withLogout = true }: { user: NavUser; withLogout?: boolean }) {
+function UidChip({ uid }: { uid: string }) {
   return (
-    <div className="user">
-      {user.photoUrl ? (
-        <img
-          className="avatar"
-          src={user.photoUrl}
-          alt={`Ảnh đại diện Telegram của ${user.label}`}
-          width={32}
-          height={32}
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <span className="avatar avatar--fallback" aria-hidden="true">
-          {user.initial}
-        </span>
-      )}
-      <span className="user__name">{user.label}</span>
-      {withLogout && <LogoutButton />}
-    </div>
+    <span className="uid-chip">
+      <span className="uid-chip__label">UID</span>
+      <span className="num">{uid}</span>
+    </span>
   );
 }

@@ -43,10 +43,3 @@ export interface NewsResponse {
 }
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
-
-export interface SessionUser {
-  id: number;
-  username: string | null;
-  firstName: string;
-  photoUrl: string | null;
-}

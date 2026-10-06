@@ -12,7 +12,7 @@ export default function LogoutButton() {
     try {
       await logout();
     } finally {
-      window.location.assign(DEV_MOCKS ? "/?mock=out" : "/");
+      window.location.assign(DEV_MOCKS ? "/?mock=new" : "/");
     }
   }
 

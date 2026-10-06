@@ -1,67 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { fetchMe, logout, UnauthorizedError } from "@/lib/api";
+import { useState } from "react";
 import { fmtAmount, fmtDateTime, fmtDateTimeShort, timeAgo } from "@/lib/format";
 import { getMemberState } from "@/lib/status";
-import type { MeResponse, Member, VolumeSummary } from "@/lib/types";
+import type { Member, VolumeSummary } from "@/lib/types";
 import { useNow } from "@/lib/useNow";
+import { useMember } from "./MemberProvider";
 import RegisterForm from "./RegisterForm";
 import VolumeChart from "./VolumeChart";
 
-type LoadState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "expired" }
-  | { kind: "ready"; data: MeResponse };
-
 export default function Dashboard() {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const { state, reload } = useMember();
   const [editing, setEditing] = useState(false);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const data = await fetchMe(signal);
-      if (!signal?.aborted) setState({ kind: "ready", data });
-    } catch (err) {
-      if (signal?.aborted) return;
-      if (err instanceof UnauthorizedError) setState({ kind: "expired" });
-      else setState({ kind: "error", message: err instanceof Error ? err.message : "Đã có lỗi xảy ra." });
-    }
-  }, []);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    void load(ctrl.signal);
-    return () => ctrl.abort();
-  }, [load]);
-
-  function reload() {
+  function handleSaved() {
     setEditing(false);
-    setState({ kind: "loading" });
-    void load();
+    reload();
   }
 
   if (state.kind === "loading") return <CardSkeleton />;
-
-  if (state.kind === "expired") {
-    return (
-      <section className="card">
-        <h3 className="card__title">Phiên đăng nhập đã hết hạn</h3>
-        <p className="card__text">Vui lòng đăng nhập lại bằng Telegram để tiếp tục.</p>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={async () => {
-            await logout().catch(() => undefined);
-            window.location.assign("/");
-          }}
-        >
-          Đăng nhập lại
-        </button>
-      </section>
-    );
-  }
 
   if (state.kind === "error") {
     return (
@@ -84,9 +41,10 @@ export default function Dashboard() {
       <section className="card">
         <RegisterForm
           key={editing ? "edit" : "new"}
+          mode={data.member ? "edit" : "new"}
           initialUid={data.member ? String(data.member.uid) : ""}
           initialEmail={data.member?.email ?? ""}
-          onSuccess={reload}
+          onSuccess={handleSaved}
           onCancel={data.member ? () => setEditing(false) : undefined}
         />
       </section>

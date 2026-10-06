@@ -4,16 +4,29 @@ import { useId, useState, type FormEvent } from "react";
 import { registerMember } from "@/lib/api";
 
 interface Props {
+  mode: "new" | "edit";
   initialUid?: string;
   initialEmail?: string;
   onSuccess: () => void;
   onCancel?: () => void;
+  cancelLabel?: string;
+  titleId?: string;
+  autoFocus?: boolean;
 }
 
 const UID_RE = /^\d{5,20}$/;
 const GMAIL_RE = /^[a-z0-9.+_-]+@(gmail|googlemail)\.com$/i;
 
-export default function RegisterForm({ initialUid = "", initialEmail = "", onSuccess, onCancel }: Props) {
+export default function RegisterForm({
+  mode,
+  initialUid = "",
+  initialEmail = "",
+  onSuccess,
+  onCancel,
+  cancelLabel = "Huỷ",
+  titleId,
+  autoFocus = false,
+}: Props) {
   const [uid, setUid] = useState(initialUid);
   const [email, setEmail] = useState(initialEmail);
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +36,7 @@ export default function RegisterForm({ initialUid = "", initialEmail = "", onSuc
 
   const uidInvalid = touched && !UID_RE.test(uid);
   const emailInvalid = touched && !GMAIL_RE.test(email.trim());
-  const editing = Boolean(onCancel);
+  const editing = mode === "edit";
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,9 +60,10 @@ export default function RegisterForm({ initialUid = "", initialEmail = "", onSuc
   return (
     <form className="form" onSubmit={handleSubmit} noValidate aria-busy={submitting}>
       <header className="card__head">
-        <h3 className="card__title">{editing ? "Cập nhật UID / email" : "Liên kết tài khoản BingX"}</h3>
+        <h3 id={titleId} className="card__title">{editing ? "Cập nhật UID / email" : "Liên kết tài khoản BingX"}</h3>
         <p className="card__text">
-          Nhập UID của tài khoản BingX bạn đã đăng ký qua link đối tác và Gmail để nhận thông báo từ cộng đồng.
+          Nhập UID tài khoản BingX bạn đã đăng ký qua link đối tác và Gmail để nhận thông báo. Hệ thống sẽ kiểm tra
+          khối lượng giao dịch 30 ngày của bạn ngay sau đó.
         </p>
       </header>
 
@@ -71,6 +85,7 @@ export default function RegisterForm({ initialUid = "", initialEmail = "", onSuc
           aria-invalid={uidInvalid}
           aria-describedby={`${ids}-uid-hint`}
           disabled={submitting}
+          autoFocus={autoFocus}
           required
         />
         <p id={`${ids}-uid-hint`} className={`field__hint${uidInvalid ? " is-error" : ""}`}>
@@ -115,7 +130,7 @@ export default function RegisterForm({ initialUid = "", initialEmail = "", onSuc
         </button>
         {onCancel && (
           <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={submitting}>
-            Huỷ
+            {cancelLabel}
           </button>
         )}
       </div>

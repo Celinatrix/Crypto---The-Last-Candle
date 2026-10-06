@@ -2,22 +2,15 @@
  * DEV-ONLY mock backend. Imported dynamically behind `DEV_MOCKS`, so it never ships
  * in a production bundle. Pick a scenario with `?mock=…` in the URL.
  */
-import type { MeResponse, NewsPost, NewsResponse, RegisterResult, SessionUser } from "./types";
+import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "./types";
 
-export type MockScenario = "out" | "new" | "fresh" | "active" | "soon" | "warned" | "kicked" | "error";
+export type MockScenario = "new" | "fresh" | "active" | "soon" | "warned" | "kicked" | "error";
 
-const SCENARIOS: readonly MockScenario[] = ["out", "new", "fresh", "active", "soon", "warned", "kicked", "error"];
+const SCENARIOS: readonly MockScenario[] = ["new", "fresh", "active", "soon", "warned", "kicked", "error"];
 
 export function parseScenario(value: string | null | undefined): MockScenario {
-  return SCENARIOS.find((s) => s === value) ?? "active";
+  return SCENARIOS.find((s) => s === value) ?? "new";
 }
-
-export const MOCK_USER: SessionUser = {
-  id: 100200300,
-  username: "candle_trader",
-  firstName: "Minh",
-  photoUrl: null,
-};
 
 const DAY = 86_400_000;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

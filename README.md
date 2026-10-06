@@ -1,36 +1,49 @@
 # The Last Candle — member area
 
-Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS.
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene" visual language
+(video hero, liquid-glass cards, parallax quote section).
+
+## Flow
+
+1. On first open, a popup asks for the member's **BingX UID** and **Gmail** (no Telegram login).
+   It can be closed ("Để sau"); it asks again on the next visit until a UID is linked. The members
+   section also keeps an inline form.
+2. After linking, the page shows the 30-day volume dashboard and the community news feed.
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in NEXT_PUBLIC_TELEGRAM_BOT_USERNAME, SESSION_SECRET
 npm run dev
 ```
 
-The backend routes (`/api/me`, `/api/register`, `/api/news`, `/api/auth/telegram`, `/api/auth/logout`) are expected
-to be served from the same origin. Register the site's domain with @BotFather (`/setdomain`) or the Telegram widget
-will not render.
+## Backend contract
 
-### Session cookie
+All routes are same-origin. There is no Telegram session any more, so the backend identifies the
+member with its own httpOnly cookie:
 
-`lib/session.ts` is the only code that reads the session. It expects an httpOnly cookie
-(`SESSION_COOKIE_NAME`, default `tlc_session`) of the form
-`base64url(JSON{id, first_name, username?, photo_url?, exp}) + "." + base64url(HMAC-SHA256(SESSION_SECRET, payloadPart))`.
-Adapt that one function if the backend signs sessions differently.
+| Route | Behaviour |
+| --- | --- |
+| `POST /api/register` `{ uid, email }` | Validates the UID against the partner link, then **sets an httpOnly member cookie**. Returns `{ ok: true }` or `{ error }` with 400/403/409/429/502. |
+| `GET /api/me` | `{ member: null }` (or 401) when the browser has no member cookie; otherwise `{ member, volume, error? }`. |
+| `GET /api/news` | `{ channel, posts, error? }` |
+| `POST /api/auth/logout` | Clears the member cookie ("Đăng xuất"). |
+
+Because anyone can type any UID, the backend should decide how much to trust a new registration
+(e.g. require the Gmail to match a previous registration for that UID, or confirm by email).
 
 ### Dev mocks
 
 Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the backend. Switch states with
-`?mock=out|new|fresh|active|soon|warned|kicked|error`. Mocks only run under `next dev`; production builds strip them.
+`?mock=new|fresh|active|soon|warned|kicked|error` (default `new` shows the popup). Mocks only run under
+`next dev`; production builds strip them.
 
 ## Layout
 
 ```
-app/        layout.tsx (fonts, metadata) · page.tsx (server component) · globals.css
-components/ TelegramLogin · Dashboard · RegisterForm · VolumeChart · NewsFeed · LogoutButton
+app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
+components/ MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
+            Dashboard · RegisterForm · VolumeChart · NewsFeed · QuoteSection · LogoutButton
 lib/        api.ts (client fetchers) · format.ts (fmtUSDT, timeAgo, …) · status.ts (member state → pill/note)
-            session.ts (server) · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
+            types.ts · useNow.ts · env.ts · mocks.ts (dev only)
 ```

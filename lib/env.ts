@@ -5,5 +5,3 @@
  */
 export const DEV_MOCKS =
   process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DEV_MOCKS === "1";
-
-export const TELEGRAM_BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
