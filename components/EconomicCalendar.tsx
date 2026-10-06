@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchCalendar } from "@/lib/api";
 import type { CalendarEvent } from "@/lib/types";
 import { useNow } from "@/lib/useNow";
+import { VN_LABEL, vnClock, vnDayKey, vnParts, vnShortDate } from "@/lib/vnTime";
 
 const REFRESH_MS = 15 * 60_000;
 /** Events within this window are highlighted as "about to be released". */
@@ -11,20 +12,11 @@ const SOON_MS = 60 * 60_000;
 /** Released events stay visible this long, labelled "Vừa ra". */
 const JUST_OUT_MS = 30 * 60_000;
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const WEEKDAYS = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
-
-function localDayKey(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function dayHeading(ms: number, now: number): string {
-  const d = new Date(ms);
-  const label = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
-  if (localDayKey(ms) === localDayKey(now)) return `Hôm nay · ${label}`;
-  if (localDayKey(ms) === localDayKey(now + 86_400_000)) return `Ngày mai · ${label}`;
-  return `${WEEKDAYS[d.getDay()] ?? ""} · ${label}`;
+  const label = vnShortDate(ms);
+  if (vnDayKey(ms) === vnDayKey(now)) return `Hôm nay · ${label}`;
+  if (vnDayKey(ms) === vnDayKey(now + 86_400_000)) return `Ngày mai · ${label}`;
+  return `${vnParts(ms).weekday} · ${label}`;
 }
 
 /** "còn 3 ngày 4 giờ", "còn 2 giờ 15 phút", "còn 8 phút", "Vừa ra · 5 phút trước" */
@@ -41,15 +33,6 @@ function relative(ms: number, now: number): string {
   if (d > 0) return `còn ${d} ngày ${h} giờ`;
   if (h > 0) return `còn ${h} giờ ${m} phút`;
   return `còn ${m} phút`;
-}
-
-/** "GMT+7" for the viewer's current offset */
-function gmtLabel(now: number): string {
-  const offsetMin = -new Date(now).getTimezoneOffset();
-  const sign = offsetMin >= 0 ? "+" : "-";
-  const h = Math.floor(Math.abs(offsetMin) / 60);
-  const m = Math.abs(offsetMin) % 60;
-  return `GMT${sign}${h}${m ? `:${pad(m)}` : ""}`;
 }
 
 interface State {
@@ -115,7 +98,7 @@ export default function EconomicCalendar() {
   const groups = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     for (const e of visible) {
-      const key = localDayKey(Date.parse(e.time));
+      const key = vnDayKey(Date.parse(e.time));
       map.set(key, [...(map.get(key) ?? []), e]);
     }
     return [...map.values()];
@@ -171,7 +154,7 @@ export default function EconomicCalendar() {
       {state.error && groups.length > 0 && <p className="news__stale">Đang hiển thị dữ liệu cũ · {state.error}</p>}
 
       <p className="cal__foot">
-        Nguồn: ForexFactory · chỉ tin tác động cao · giờ theo múi giờ của bạn ({gmtLabel(now)})
+        Nguồn: ForexFactory · chỉ tin tác động cao · {VN_LABEL}
       </p>
     </div>
   );
@@ -182,13 +165,12 @@ function EventRow({ event, now }: { event: CalendarEvent; now: number }) {
   const diff = t - now;
   const out = diff <= 0;
   const soon = !out && diff <= SOON_MS;
-  const d = new Date(t);
 
   return (
     <li className={`ev${soon ? " ev--soon" : ""}${out ? " ev--out" : ""}`}>
       <div className="ev__time">
         <time className="num" dateTime={event.time}>
-          {pad(d.getHours())}:{pad(d.getMinutes())}
+          {vnClock(t)}
         </time>
         <span className="ev__cur">{event.currency}</span>
       </div>

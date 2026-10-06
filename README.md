@@ -66,6 +66,27 @@ CORS headers, so the browser cannot call it directly). Limits of that feed: curr
 previous values but **no actual results**. The sidebar's "Lịch đỏ" tab shows upcoming events with a
 countdown, highlights anything within the next hour, and keeps released events for 30 minutes as "Vừa ra".
 
+### Daily 07:00 email (red-folder calendar)
+
+Every day at **07:00 Vietnam time** each active member with a linked Gmail receives that day's red-folder
+events (07:00 today → 07:00 tomorrow, times in GMT+7). Days with no red events send nothing.
+
+- **Schedule** — `vercel.json` runs `/api/cron/daily-calendar` at `0 0 * * *` (00:00 UTC = 07:00 GMT+7).
+  On Vercel's Hobby plan cron may fire any time within that hour; Pro runs on the minute.
+- **Auth** — set `CRON_SECRET` in the Vercel project; Vercel then sends `Authorization: Bearer <secret>`
+  and the route rejects anything else.
+- **Sending** — Resend batch API (`RESEND_API_KEY`, `EMAIL_FROM` on a domain verified in Resend), one
+  message per member, 100 per request, with an `Idempotency-Key` per day so a retried run does not
+  send twice. `EMAIL_REPLY_TO` (optional) receives replies and "Huỷ đăng ký" requests and is used for
+  the `List-Unsubscribe` header.
+- **Recipients — backend contract.** The route calls `MEMBERS_EMAILS_URL` with
+  `Authorization: Bearer $INTERNAL_API_KEY` and expects `{ "emails": ["a@gmail.com", ...] }`: the Gmail
+  addresses of members who are not kicked and have not asked to unsubscribe. Non-Gmail and duplicate
+  addresses are dropped.
+- **Manual checks** (same header): `?preview=1` returns the email HTML (also open without the header
+  under `next dev`), `?dry=1` returns a JSON summary without sending, `?test=you@gmail.com` sends only
+  to that address.
+
 ### Dev mocks
 
 Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the backend. Switch states with
@@ -79,7 +100,8 @@ app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
 components/ NewsPanel (tabs) · EconomicCalendar · MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
             Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
             LogoutButton
-lib/        api.ts (client fetchers) · format.ts (fmtUSD, timeAgo, …) · premium.ts (cycle rule)
+lib/        ffCalendar.ts (ForexFactory feed) · dailyEmail.ts (07:00 email) · vnTime.ts (GMT+7)
+            api.ts (client fetchers) · format.ts (fmtUSD, timeAgo, …) · premium.ts (cycle rule)
             status.ts (member state → pill/note/alert)
             linkSession.ts (24h device link) · clipboard.ts · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
 ```
