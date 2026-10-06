@@ -1,6 +1,7 @@
 import Dashboard from "@/components/Dashboard";
 import Hero from "@/components/Hero";
 import LinkModal from "@/components/LinkModal";
+import ContactSection from "@/components/ContactSection";
 import { MemberProvider } from "@/components/MemberProvider";
 import NewsFeed from "@/components/NewsFeed";
 import QuoteSection from "@/components/QuoteSection";
@@ -61,6 +62,7 @@ export default function Home() {
         </section>
 
         <QuoteSection />
+        <ContactSection />
 
         <footer className="site-footer">
           <span className="site-footer__brand">The Last Candle</span>

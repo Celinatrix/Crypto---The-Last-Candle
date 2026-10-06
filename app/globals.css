@@ -1540,6 +1540,147 @@ input {
   letter-spacing: 0.025em;
 }
 
+/* ---------- Contact ---------- */
+
+.contact {
+  position: relative;
+  padding: 112px 48px 96px;
+  background: linear-gradient(180deg, #6badc4 0, #2a5f78 70px, #0e2433 200px, var(--bg) 85%);
+  overflow: hidden;
+}
+
+.contact::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(700px 360px at 50% 0%, rgba(107, 173, 196, 0.18), transparent 70%);
+}
+
+.contact__intro {
+  position: relative;
+  max-width: 1240px;
+  margin: 0 auto 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.contact__title {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-weight: 400;
+}
+
+.contact__title .font-instrument {
+  font-size: clamp(44px, 6vw, 76px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+}
+
+.contact__title em {
+  font-style: italic;
+  color: var(--ice);
+}
+
+.contact__title-vi {
+  font-size: clamp(15px, 1.6vw, 18px);
+  color: var(--text-80);
+}
+
+.contact__list {
+  position: relative;
+  max-width: 1040px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.contact__card {
+  border-radius: var(--radius);
+  background-color: var(--glass);
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.3s var(--ease), transform 0.3s var(--ease);
+}
+
+.contact__card:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.contact__link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 22px 14px;
+  text-decoration: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  min-width: 0;
+}
+
+.contact__icon {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.contact__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.contact__value {
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.contact__arrow {
+  color: var(--muted);
+  font-size: 16px;
+  transition: color 0.2s, transform 0.3s var(--ease);
+}
+
+.contact__card:hover .contact__arrow {
+  color: #fff;
+  transform: translate(2px, -2px);
+}
+
+.contact__copy {
+  align-self: flex-start;
+  margin: 0 22px 20px 82px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-80);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.contact__copy:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {
@@ -1706,14 +1847,30 @@ input {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1279px) {
   .nav__links {
     gap: 32px;
   }
+}
 
+/* Five links + the UID chip need ~1100px; below that use the hamburger menu. */
+@media (max-width: 1099px) {
+  .nav__links,
+  .nav__right {
+    display: none;
+  }
+
+  .burger {
+    display: flex;
+  }
 }
 
 @media (max-width: 920px) {
+  .contact__list {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 520px;
+  }
+
   .layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1741,17 +1898,12 @@ input {
     font-size: 24px;
   }
 
-  .nav__links,
-  .nav__right {
-    display: none;
-  }
-
-  .burger {
-    display: flex;
-  }
-
   .members {
     padding: 88px 16px 80px;
+  }
+
+  .contact {
+    padding: 80px 16px 72px;
   }
 
   .members__intro {

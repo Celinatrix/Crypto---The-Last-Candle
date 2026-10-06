@@ -9,6 +9,7 @@ const LINKS = [
   { href: "#news", label: "Tin tức" },
   { href: "#rules", label: "Quy định" },
   { href: "#manifesto", label: "Cộng đồng" },
+  { href: "#contact", label: "Liên hệ" },
 ] as const;
 
 export default function SiteNav() {
@@ -39,7 +40,7 @@ export default function SiteNav() {
         toggleRef.current?.focus();
       }
     };
-    const onResize = () => window.innerWidth >= 768 && setOpen(false);
+    const onResize = () => window.innerWidth >= 1100 && setOpen(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
     return () => {
