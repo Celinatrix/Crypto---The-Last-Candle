@@ -2,12 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { DAY_MS, fetchDailyFuturesVolume, fetchInvitees, startOfUtcDay } from "@/backend/bingx";
 import { cronAuthorized } from "@/backend/cronAuth";
 import { insertOne, rpc, update, upsert } from "@/backend/db";
+import { sendCycleReport } from "@/backend/cycleReport";
 import { sendAdminDigest, sendCycleNotices } from "@/backend/notify";
 
 /**
  * Daily BingX → Supabase sync (vercel.json: "0 2 * * *" = 02:00 UTC, after BingX publishes
  * the previous UTC day). Stores every invitee and their daily futures volume, then settles
- * Premium cycles, then emails members who are falling short and the admin (pending kicks).
+ * Premium cycles, then emails members who are falling short and the admin (pending kicks; on the
+ * 1st and 15th also the Excel report of the cycle that just ended — `?report=1` sends it now).
  * The last 16 days are re-fetched each run so late corrections and a missed
  * run heal themselves. `?days=N` (1–365) backfills further, e.g. on the first run.
  */
@@ -79,7 +81,15 @@ export async function GET(req: NextRequest) {
     const notices = await sendCycleNotices(siteUrl).catch((err: Error) => ({ error: err.message }));
     const pendingKicks = await sendAdminDigest().catch((err: Error) => ({ error: err.message }));
 
-    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pendingKicks });
+    // On the 1st and the 15th: report of the cycle that ended yesterday (?report=1 forces it).
+    const today = day(Date.now());
+    const forceReport = req.nextUrl.searchParams.get("report") === "1";
+    const cycleReport =
+      forceReport || ["01", "15"].includes(today.slice(8))
+        ? await sendCycleReport(today, { force: forceReport }).catch((err: Error) => ({ error: err.message }))
+        : "not-today";
+
+    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pendingKicks, cycleReport });
   } catch (err) {
     const message = (err as Error).message;
     await update("sync_runs", `id=eq.${runId}`, {

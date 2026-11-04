@@ -26,6 +26,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Excel writer (cycle report): load from node_modules at runtime instead of bundling it.
+  serverExternalPackages: ["exceljs"],
   reactStrictMode: true,
   async headers() {
     return [

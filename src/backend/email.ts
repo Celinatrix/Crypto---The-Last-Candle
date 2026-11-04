@@ -13,6 +13,8 @@ export interface EmailMessage {
   html: string;
   text: string;
   headers?: Record<string, string>;
+  /** Files to attach; `content` is the raw bytes. */
+  attachments?: { filename: string; content: Buffer }[];
 }
 
 function resendConfig() {
@@ -30,6 +32,9 @@ const payloadOf = (m: EmailMessage, from: string, replyTo?: string) => ({
   text: m.text,
   ...(replyTo ? { reply_to: replyTo } : {}),
   ...(m.headers ? { headers: m.headers } : {}),
+  ...(m.attachments
+    ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") })) }
+    : {}),
 });
 
 async function post(url: string, body: unknown, apiKey: string, idempotencyKey?: string): Promise<unknown> {
@@ -52,10 +57,10 @@ async function post(url: string, body: unknown, apiKey: string, idempotencyKey?:
   return json;
 }
 
-/** Send one email. Returns Resend's message id. */
-export async function sendEmail(m: EmailMessage): Promise<string> {
+/** Send one email. Returns Resend's message id. The idempotency key makes a retry a no-op (24h). */
+export async function sendEmail(m: EmailMessage, idempotencyKey?: string): Promise<string> {
   const { apiKey, from, replyTo } = resendConfig();
-  const json = (await post(RESEND_URL, payloadOf(m, from, replyTo), apiKey)) as { id?: string };
+  const json = (await post(RESEND_URL, payloadOf(m, from, replyTo), apiKey, idempotencyKey)) as { id?: string };
   return json.id ?? "";
 }
 
