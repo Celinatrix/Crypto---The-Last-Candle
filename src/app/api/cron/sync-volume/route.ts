@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { DAY_MS, fetchDailyFuturesVolume, fetchInvitees, startOfUtcDay } from "@/backend/bingx";
 import { cronAuthorized } from "@/backend/cronAuth";
 import { insertOne, rpc, update, upsert } from "@/backend/db";
+import { sendWeeklyBackup } from "@/backend/backup";
 import { sendCycleReport } from "@/backend/cycleReport";
 import { sendAdminDigest, sendCycleNotices } from "@/backend/notify";
 
@@ -79,17 +80,25 @@ export async function GET(req: NextRequest) {
     // Emails never fail the sync: the data is already stored.
     const siteUrl = process.env.SITE_URL || req.nextUrl.origin;
     const notices = await sendCycleNotices(siteUrl).catch((err: Error) => ({ error: err.message }));
-    const pendingKicks = await sendAdminDigest().catch((err: Error) => ({ error: err.message }));
+    const pending = await sendAdminDigest().catch((err: Error) => ({ error: err.message }));
 
     // On the 1st and the 15th: report of the cycle that ended yesterday (?report=1 forces it).
     const today = day(Date.now());
-    const forceReport = req.nextUrl.searchParams.get("report") === "1";
+    const params = req.nextUrl.searchParams;
+    const forceReport = params.get("report") === "1";
     const cycleReport =
       forceReport || ["01", "15"].includes(today.slice(8))
         ? await sendCycleReport(today, { force: forceReport }).catch((err: Error) => ({ error: err.message }))
         : "not-today";
 
-    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pendingKicks, cycleReport });
+    // Every Monday (UTC): emailed backup of the tables BingX cannot rebuild (?backup=1 forces it).
+    const forceBackup = params.get("backup") === "1";
+    const backup =
+      forceBackup || new Date().getUTCDay() === 1
+        ? await sendWeeklyBackup(today, { force: forceBackup }).catch((err: Error) => ({ error: err.message }))
+        : "not-today";
+
+    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pending, cycleReport, backup });
   } catch (err) {
     const message = (err as Error).message;
     await update("sync_runs", `id=eq.${runId}`, {

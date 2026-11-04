@@ -16,9 +16,10 @@ export type MockScenario =
   | "grace"
   | "failed"
   | "kicked"
+  | "pending"
   | "error";
 
-const SCENARIOS: readonly MockScenario[] = ["new", "fresh", "active", "soon", "met", "rest", "grace", "failed", "kicked", "error"];
+const SCENARIOS: readonly MockScenario[] = ["new", "fresh", "active", "soon", "met", "rest", "grace", "failed", "kicked", "pending", "error"];
 
 export function parseScenario(value: string | null | undefined): MockScenario {
   return SCENARIOS.find((s) => s === value) ?? "new";
@@ -38,7 +39,7 @@ interface Plan {
   segments: Array<[from: number, to: number, total: number]>;
 }
 
-const PLANS: Record<Exclude<MockScenario, "new" | "error">, Plan> = {
+const PLANS: Record<Exclude<MockScenario, "new" | "error" | "pending">, Plan> = {
   fresh: { cycle: 1, segments: [[1, 2, 3_480]] },
   active: { cycle: 3, segments: [[1, 6, 31_960]] },
   // Day 12: 3 days left and short → warning.
@@ -71,6 +72,13 @@ export async function mockMe(): Promise<MeResponse> {
   const link = readLink();
   if (!link) return { member: null };
   const s = scenario();
+  if (s === "pending") {
+    // Linked, waiting for the admin: no volume until approved.
+    return {
+      member: { uid: link.uid, email: link.email, status: "pending", joinedAt: new Date().toISOString(), warnedAt: null },
+      volume: null,
+    };
+  }
   return meFor(s === "new" || s === "error" ? "active" : s, link);
 }
 

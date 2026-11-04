@@ -35,6 +35,10 @@ export async function GET(req: NextRequest) {
     const me = await rpc<MemberMe | null>("member_me", { p_token_hash: bytea(sha256(token)) });
     if (!me || !me.status || !me.joinedAt) return notLinked();
 
+    const member = { uid: me.uid, email: me.email, status: me.status, joinedAt: me.joinedAt, warnedAt: me.warnedAt };
+    // Waiting for the admin: no volume until the UID ↔ Gmail link is approved.
+    if (me.status === "pending") return NextResponse.json<MeResponse>({ member, volume: null });
+
     // 30 buckets oldest → newest; days with no trades (or not synced yet) are 0.
     const byDay = new Map(me.daily.map((d) => [d.day, Number(d.volume) || 0]));
     const today = Math.floor(Date.now() / DAY_MS) * DAY_MS;
@@ -45,7 +49,7 @@ export async function GET(req: NextRequest) {
     const sum = (list: DailyVolume[]) => list.reduce((s, d) => s + d.volume, 0);
 
     return NextResponse.json<MeResponse>({
-      member: { uid: me.uid, email: me.email, status: me.status, joinedAt: me.joinedAt, warnedAt: me.warnedAt },
+      member,
       volume: {
         total30: sum(daily),
         total14: sum(daily.slice(-14)),

@@ -212,18 +212,57 @@ export interface PendingKick {
   target_usd: number | string;
 }
 
-/** Morning digest for the admin: failed cycles waiting for a kick decision. */
-export function adminKickDigest(to: string, pending: PendingKick[], dashboardUrl: string): EmailMessage {
-  const subject = `🛎️ ${pending.length} đề xuất kick đang chờ duyệt`;
-  const rows = pending.map(
+export interface PendingApproval {
+  bingx_uid: number;
+  email: string;
+  joined_at: string | null;
+}
+
+const approvalHowTo =
+  `Kiểm tra UID và Gmail có đúng là của người đó không (ví dụ: họ đã nhắn UID cho bạn qua Telegram). ` +
+  `Đúng: vào Supabase → Table Editor → <strong>members</strong>, tick ô <strong>approved</strong>. ` +
+  `Sai: xoá dòng đó trong <strong>members</strong> để chủ thật của UID đăng ký được.`;
+
+/** Sent right away when someone links a UID (or re-joins after a kick) and waits for approval. */
+export function pendingApprovalEmail(to: string, p: PendingApproval, dashboardUrl: string): EmailMessage {
+  const subject = `🆕 Chờ duyệt: UID ${p.bingx_uid}`;
+  const paragraphs = [
+    `UID <strong>${p.bingx_uid}</strong> vừa được liên kết với Gmail <strong>${escapeHtml(p.email)}</strong> và đang chờ bạn duyệt. Trong lúc chờ, người này chưa xem được volume và chưa được tính chu kỳ.`,
+    approvalHowTo,
+  ];
+  const text = [subject, "", ...paragraphs.map((l) => l.replace(/<[^>]+>/g, "")), "", `Duyệt tại: ${dashboardUrl}`].join("\n");
+  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở bảng members" }), text };
+}
+
+/** Morning digest for the admin: kick reviews and new links waiting for a decision. */
+export function adminDigest(
+  to: string,
+  kicks: PendingKick[],
+  approvals: PendingApproval[],
+  dashboardUrl: string,
+): EmailMessage {
+  const parts = [
+    kicks.length ? `${kicks.length} đề xuất kick` : "",
+    approvals.length ? `${approvals.length} thành viên mới` : "",
+  ].filter(Boolean);
+  const subject = `🛎️ Đang chờ duyệt: ${parts.join(" · ")}`;
+  const kickRows = kicks.map(
     (p) =>
       `• UID <strong>${p.bingx_uid}</strong> (${escapeHtml(p.email)}) — chu kỳ #${p.cycle_index} ${vnDay(p.start_day)}–${vnDay(p.end_day)}: ${usd(Number(p.counted_volume))} / ${usd(Number(p.target_usd))}`,
   );
+  const approvalRows = approvals.map(
+    (a) => `• UID <strong>${a.bingx_uid}</strong> — ${escapeHtml(a.email)}${a.joined_at ? ` (từ ${vnDay(a.joined_at)})` : ""}`,
+  );
   const paragraphs = [
-    `Các thành viên sau không đạt chu kỳ và đã hết 24 giờ gia hạn:`,
-    rows.join("<br>"),
-    `Vào Supabase → Table Editor → <strong>kick_reviews</strong>, đổi cột <strong>decision</strong> thành <strong>approved</strong> (xoá khỏi nhóm) hoặc <strong>rejected</strong> (giữ lại).`,
+    ...(kicks.length
+      ? [
+          `<strong>Không đạt chu kỳ</strong> (đã hết 24 giờ gia hạn):`,
+          kickRows.join("<br>"),
+          `Vào Supabase → Table Editor → <strong>kick_reviews</strong>, đổi cột <strong>decision</strong> thành <strong>approved</strong> (xoá khỏi nhóm) hoặc <strong>rejected</strong> (giữ lại).`,
+        ]
+      : []),
+    ...(approvals.length ? [`<strong>Thành viên mới chờ duyệt:</strong>`, approvalRows.join("<br>"), approvalHowTo] : []),
   ];
-  const text = [subject, "", ...rows.map((r) => r.replace(/<[^>]+>/g, "")), "", `Duyệt tại: ${dashboardUrl}`].join("\n");
-  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở kick_reviews" }), text };
+  const text = [subject, "", ...paragraphs.map((r) => r.replace(/<br>/g, "\n").replace(/<[^>]+>/g, "")), "", `Duyệt tại: ${dashboardUrl}`].join("\n");
+  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở Supabase" }), text };
 }

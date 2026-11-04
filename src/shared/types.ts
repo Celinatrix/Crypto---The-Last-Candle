@@ -1,4 +1,5 @@
-export type MemberStatus = "active" | "warned" | "kicked";
+/** "pending": linked, waiting for the admin to approve the UID ↔ Gmail link (no volume shown). */
+export type MemberStatus = "pending" | "active" | "warned" | "kicked";
 
 export interface Member {
   uid: string;

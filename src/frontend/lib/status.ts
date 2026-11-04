@@ -19,6 +19,16 @@ export interface MemberState {
 const REQ = fmtUSD(PREMIUM_RULE.requiredUsd);
 
 export function getMemberState(member: Member, volume: VolumeSummary | null, now: number): MemberState {
+  if (member.status === "pending") {
+    return {
+      label: "Đang chờ duyệt",
+      tone: "neutral",
+      noteTitle: "Admin đang xác minh UID của bạn.",
+      noteBody:
+        "Để không ai liên kết được UID của người khác, mỗi UID mới cần admin duyệt trước. Hãy nhắn UID BingX cho admin qua Telegram để được duyệt nhanh. Sau khi duyệt, khối lượng giao dịch và tiến độ Premium sẽ hiện ở đây.",
+      progress: null,
+    };
+  }
   if (member.status === "kicked") {
     return {
       label: "Đã bị xoá khỏi nhóm",

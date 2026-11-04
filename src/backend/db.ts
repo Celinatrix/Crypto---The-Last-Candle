@@ -62,6 +62,19 @@ export async function select<T>(table: string, query: string): Promise<T[]> {
   return request<T[]>(`${table}?${query}`, { method: "GET" });
 }
 
+/**
+ * Every row of a table, 1,000 at a time (PostgREST caps one response at 1,000 rows).
+ * `order` must be a unique column so pages never overlap.
+ */
+export async function selectAll<T>(table: string, order = "id"): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await select<T>(table, `select=*&order=${order}.asc&limit=1000&offset=${offset}`);
+    out.push(...page);
+    if (page.length < 1000) return out;
+  }
+}
+
 /** Insert or update on the given unique columns, in chunks. */
 export async function upsert(table: string, rows: object[], onConflict: string): Promise<void> {
   for (let i = 0; i < rows.length; i += 500) {
