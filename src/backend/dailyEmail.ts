@@ -1,5 +1,5 @@
-import type { CalendarEvent } from "./types";
-import { VN_LABEL, vnClock, vnDayKey, vnLongDate, vnShortDate } from "./vnTime";
+import type { CalendarEvent } from "@/shared/types";
+import { VN_LABEL, vnClock, vnDayKey, vnLongDate, vnShortDate } from "@/shared/vnTime";
 
 export interface DailyEmail {
   subject: string;

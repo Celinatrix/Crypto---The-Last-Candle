@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCalendar } from "@/lib/api";
-import type { CalendarEvent } from "@/lib/types";
-import { useNow } from "@/lib/useNow";
-import { VN_LABEL, vnClock, vnDayKey, vnParts, vnShortDate } from "@/lib/vnTime";
+import { fetchCalendar } from "@/frontend/lib/api";
+import type { CalendarEvent } from "@/shared/types";
+import { useNow } from "@/frontend/lib/useNow";
+import { VN_LABEL, vnClock, vnDayKey, vnParts, vnShortDate } from "@/shared/vnTime";
 
 const REFRESH_MS = 15 * 60_000;
 /** Events within this window are highlighted as "about to be released". */

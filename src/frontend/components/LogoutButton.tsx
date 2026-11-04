@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEV_MOCKS } from "@/lib/env";
+import { DEV_MOCKS } from "@/frontend/lib/env";
 import { useMember } from "./MemberProvider";
 
 export default function LogoutButton() {

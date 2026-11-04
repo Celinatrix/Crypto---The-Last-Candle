@@ -3,7 +3,7 @@
  * in a production bundle. Pick a scenario with `?mock=…` in the URL.
  */
 import { readLink } from "./linkSession";
-import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "./types";
+import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "@/shared/types";
 
 export type MockScenario =
   | "new"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { copyText } from "@/lib/clipboard";
+import { copyText } from "@/frontend/lib/clipboard";
 
 interface Contact {
   key: string;

@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { renderDailyEmail } from "@/lib/dailyEmail";
-import { fetchRedEvents } from "@/lib/ffCalendar";
-import { vnDayAt, vnDayKey } from "@/lib/vnTime";
+import { renderDailyEmail } from "@/backend/dailyEmail";
+import { fetchRedEvents } from "@/backend/ffCalendar";
+import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 
 /**
  * Daily 07:00 (Vietnam time) email with today's ForexFactory red-folder events.

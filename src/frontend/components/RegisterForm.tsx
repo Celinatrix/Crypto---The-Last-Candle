@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import { registerMember } from "@/lib/api";
+import { registerMember } from "@/frontend/lib/api";
 
 interface Props {
   mode: "new" | "edit";

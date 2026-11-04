@@ -9,14 +9,14 @@ Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene
    Both fields are required — the submit button stays disabled until both are filled in.
    It can be closed ("Để sau"); it asks again on the next visit until a UID is linked. The members
    section also keeps an inline form.
-2. A successful link is remembered **for 24 hours on that device** (`lib/linkSession.ts`, localStorage).
+2. A successful link is remembered **for 24 hours on that device** (`src/frontend/lib/linkSession.ts`, localStorage).
    After that the device is treated as not linked and the popup asks again, even mid-visit. The backend
    member cookie should use the same lifetime (`Max-Age=86400`).
 3. After linking, the page shows the 30-day volume dashboard and the community news feed.
 
 ## Premium volume rule
 
-Defined once in `lib/premium.ts` (`PREMIUM_RULE`) and shown in the dashboard's progress card:
+Defined once in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) and shown in the dashboard's progress card:
 
 - Each cycle gives the member **14 days** to reach **60,000$** of trading volume (UTC calendar days).
 - **Reached early** (e.g. day 10): the rest of the 14 days does not count, plus **3 rest days**; the next
@@ -51,7 +51,7 @@ member with its own httpOnly cookie:
 | `POST /api/register` `{ uid, email }` | Validates the UID against the partner link, then **sets an httpOnly member cookie** (`Max-Age=86400`). Returns `{ ok: true }` or `{ error }` with 400/403/409/429/502. |
 | `GET /api/me` | `{ member: null }` (or 401) when the browser has no member cookie; otherwise `{ member, volume, error? }`. |
 | `GET /api/news` | `{ channel, posts, error? }` |
-| `GET /api/calendar` | **Served by this app** (`app/api/calendar/route.ts`): this week's high-impact ("red folder") events from ForexFactory → `{ source, events: [{ id, title, currency, time, forecast, previous }], fetchedAt, error? }`. |
+| `GET /api/calendar` | **Served by this app** (`src/app/api/calendar/route.ts`): this week's high-impact ("red folder") events from ForexFactory → `{ source, events: [{ id, title, currency, time, forecast, previous }], fetchedAt, error? }`. |
 | `POST /api/auth/logout` | Clears the member cookie ("Đăng xuất"). |
 
 Because anyone can type any UID, the backend should decide how much to trust a new registration
@@ -95,13 +95,25 @@ Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the bac
 
 ## Layout
 
+Toàn bộ code nằm trong `src/`; ngoài gốc chỉ còn file cấu hình.
+
 ```
-app/        layout.tsx (fonts, metadata) · page.tsx · globals.css
-components/ NewsPanel (tabs) · EconomicCalendar · MemberProvider (shared /api/me state) · LinkModal (UID + Gmail popup) · SiteNav · Hero
-            Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed · PremiumSection · QuoteSection · ContactSection
-            LogoutButton
-lib/        ffCalendar.ts (ForexFactory feed) · dailyEmail.ts (07:00 email) · vnTime.ts (GMT+7)
-            api.ts (client fetchers) · format.ts (fmtUSD, timeAgo, …) · premium.ts (cycle rule)
-            status.ts (member state → pill/note/alert)
-            linkSession.ts (24h device link) · clipboard.ts · types.ts · useNow.ts · env.ts · mocks.ts (dev only)
+src/
+  app/              Next.js routing (bắt buộc giữ tên này) — chỉ là "cửa vào"
+    layout.tsx · page.tsx · globals.css        → trang web, dùng frontend/
+    api/calendar · api/cron/daily-calendar     → API routes, gọi backend/
+
+  frontend/         Chạy trên trình duyệt
+    components/     NewsPanel · EconomicCalendar · MemberProvider · LinkModal · SiteNav · Hero
+                    Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed
+                    PremiumSection · QuoteSection · ContactSection · LogoutButton
+    lib/            api.ts (client fetchers) · format.ts · premium.ts (cycle rule) · status.ts
+                    linkSession.ts (24h device link) · clipboard.ts · useNow.ts · env.ts · mocks.ts (dev only)
+
+  backend/          Chỉ chạy trên server
+    ffCalendar.ts   ForexFactory feed
+    dailyEmail.ts   07:00 email
+
+  shared/           Dùng chung cả hai phía
+    types.ts · vnTime.ts (GMT+7)
 ```

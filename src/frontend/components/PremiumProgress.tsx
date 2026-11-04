@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { fmtDateTimeShort, fmtDay, fmtDayFull, fmtUSD } from "@/lib/format";
-import { PREMIUM_RULE, type CycleProgress } from "@/lib/premium";
-import type { Tone } from "@/lib/status";
+import { fmtDateTimeShort, fmtDay, fmtDayFull, fmtUSD } from "@/frontend/lib/format";
+import { PREMIUM_RULE, type CycleProgress } from "@/frontend/lib/premium";
+import type { Tone } from "@/frontend/lib/status";
 
 interface Props {
   progress: CycleProgress;

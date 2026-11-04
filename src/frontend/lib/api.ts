@@ -1,6 +1,6 @@
 import { DEV_MOCKS } from "./env";
 
-import type { CalendarResponse, MeResponse, NewsResponse, RegisterResult } from "./types";
+import type { CalendarResponse, MeResponse, NewsResponse, RegisterResult } from "@/shared/types";
 
 // Each mock branch repeats the inline NODE_ENV check so webpack can drop the
 // dynamic import (and the mock chunk) from production builds.

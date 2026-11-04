@@ -1,5 +1,5 @@
 import { toTime } from "./format";
-import type { VolumeSummary } from "./types";
+import type { VolumeSummary } from "@/shared/types";
 
 /**
  * Premium volume rule (single source of truth for the page):

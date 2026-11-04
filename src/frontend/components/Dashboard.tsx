@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { fmtDateTime, fmtDateTimeShort, timeAgo } from "@/lib/format";
-import { getMemberState } from "@/lib/status";
-import type { Member, VolumeSummary } from "@/lib/types";
-import { useNow } from "@/lib/useNow";
+import { fmtDateTime, fmtDateTimeShort, timeAgo } from "@/frontend/lib/format";
+import { getMemberState } from "@/frontend/lib/status";
+import type { Member, VolumeSummary } from "@/shared/types";
+import { useNow } from "@/frontend/lib/useNow";
 import { useMember } from "./MemberProvider";
 import PremiumProgress from "./PremiumProgress";
 import RegisterForm from "./RegisterForm";

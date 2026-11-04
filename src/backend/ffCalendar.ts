@@ -1,4 +1,4 @@
-import type { CalendarEvent } from "./types";
+import type { CalendarEvent } from "@/shared/types";
 
 /**
  * High-impact ("red folder") events of the current week from ForexFactory. Server-only.

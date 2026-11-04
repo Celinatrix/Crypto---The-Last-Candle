@@ -1,6 +1,6 @@
 import { fmtDateTime, fmtDayFull, fmtUSD } from "./format";
 import { getCycleProgress, PREMIUM_RULE, type CycleProgress } from "./premium";
-import type { Member, VolumeSummary } from "./types";
+import type { Member, VolumeSummary } from "@/shared/types";
 
 export type Tone = "ok" | "neutral" | "warn" | "danger";
 

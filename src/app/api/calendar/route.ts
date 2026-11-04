@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { CALENDAR_REVALIDATE_SECONDS, fetchRedEvents } from "@/lib/ffCalendar";
-import type { CalendarResponse } from "@/lib/types";
+import { CALENDAR_REVALIDATE_SECONDS, fetchRedEvents } from "@/backend/ffCalendar";
+import type { CalendarResponse } from "@/shared/types";
 
 /** This week's ForexFactory red-folder events for the "Lịch đỏ" tab (see lib/ffCalendar.ts). */
 export async function GET() {

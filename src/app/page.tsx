@@ -1,12 +1,12 @@
-import Dashboard from "@/components/Dashboard";
-import Hero from "@/components/Hero";
-import LinkModal from "@/components/LinkModal";
-import ContactSection from "@/components/ContactSection";
-import { MemberProvider } from "@/components/MemberProvider";
-import NewsPanel from "@/components/NewsPanel";
-import PremiumSection from "@/components/PremiumSection";
-import QuoteSection from "@/components/QuoteSection";
-import SiteNav from "@/components/SiteNav";
+import Dashboard from "@/frontend/components/Dashboard";
+import Hero from "@/frontend/components/Hero";
+import LinkModal from "@/frontend/components/LinkModal";
+import ContactSection from "@/frontend/components/ContactSection";
+import { MemberProvider } from "@/frontend/components/MemberProvider";
+import NewsPanel from "@/frontend/components/NewsPanel";
+import PremiumSection from "@/frontend/components/PremiumSection";
+import QuoteSection from "@/frontend/components/QuoteSection";
+import SiteNav from "@/frontend/components/SiteNav";
 
 export default function Home() {
   return (

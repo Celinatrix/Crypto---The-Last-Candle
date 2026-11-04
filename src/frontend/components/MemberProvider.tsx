@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { fetchMe, logout } from "@/lib/api";
-import { clearLink, readLink, saveLink } from "@/lib/linkSession";
-import type { MeResponse } from "@/lib/types";
+import { fetchMe, logout } from "@/frontend/lib/api";
+import { clearLink, readLink, saveLink } from "@/frontend/lib/linkSession";
+import type { MeResponse } from "@/shared/types";
 
 export type MeState =
   | { kind: "loading" }

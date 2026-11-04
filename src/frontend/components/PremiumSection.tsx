@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { copyText } from "@/lib/clipboard";
+import { copyText } from "@/frontend/lib/clipboard";
 import { useLinkedMember } from "./MemberProvider";
 
 const BINGX_PARTNER_URL = "https://bingx.com/partner/AKITE3004";

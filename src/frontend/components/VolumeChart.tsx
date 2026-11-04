@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { fmtCompact, fmtDay, fmtUSDT } from "@/lib/format";
-import type { DailyVolume } from "@/lib/types";
+import { fmtCompact, fmtDay, fmtUSDT } from "@/frontend/lib/format";
+import type { DailyVolume } from "@/shared/types";
 
 const VIEW_W = 300;
 const VIEW_H = 100;

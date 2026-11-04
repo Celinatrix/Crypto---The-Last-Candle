@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchNews } from "@/lib/api";
-import { fmtCompact, timeAgo, toTime } from "@/lib/format";
-import type { NewsPost } from "@/lib/types";
-import { useNow } from "@/lib/useNow";
+import { fetchNews } from "@/frontend/lib/api";
+import { fmtCompact, timeAgo, toTime } from "@/frontend/lib/format";
+import type { NewsPost } from "@/shared/types";
+import { useNow } from "@/frontend/lib/useNow";
 
 const POLL_MS = 30_000;
 const FRESH_MS = 6_000;
