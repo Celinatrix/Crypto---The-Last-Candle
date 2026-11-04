@@ -7,6 +7,9 @@ export interface DailyEmail {
   text: string;
 }
 
+/** Replaced per recipient with their signed unsubscribe link (see unsubscribeUrl). */
+export const UNSUBSCRIBE_PLACEHOLDER = "%%UNSUBSCRIBE_URL%%";
+
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -84,7 +87,7 @@ export function renderDailyEmail(events: CalendarEvent[], windowStart: number, s
             <tr>
               <td style="padding:18px 28px 24px;background:#fafafc;border-top:1px solid #ececf1;font-size:12px;line-height:1.6;color:#8a8f9c;">
                 Nguồn: ForexFactory (chỉ tin tác động cao). Bạn nhận email này vì đã liên kết Gmail tại khu vực thành viên The Last Candle.
-                Để ngừng nhận, hãy trả lời email này với nội dung "Huỷ đăng ký".
+                <a href="${UNSUBSCRIBE_PLACEHOLDER}" style="color:#8a8f9c;text-decoration:underline;">Huỷ nhận email này</a>.
               </td>
             </tr>
           </table>
@@ -109,7 +112,8 @@ export function renderDailyEmail(events: CalendarEvent[], windowStart: number, s
     "",
     `Xem lịch trên trang: ${calendarUrl}`,
     "",
-    `Nguồn: ForexFactory. Bạn nhận email này vì đã liên kết Gmail tại The Last Candle. Trả lời "Huỷ đăng ký" để ngừng nhận.`,
+    `Nguồn: ForexFactory. Bạn nhận email này vì đã liên kết Gmail tại The Last Candle.`,
+    `Huỷ nhận email này: ${UNSUBSCRIBE_PLACEHOLDER}`,
   ].join("\n");
 
   return { subject, html, text };

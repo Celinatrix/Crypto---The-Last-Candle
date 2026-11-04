@@ -1,118 +1,111 @@
 # The Last Candle — member area
 
 Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene" visual language
-(video hero, liquid-glass cards, parallax quote section).
+(video hero, liquid-glass cards, parallax quote section) · Supabase (PostgreSQL) · BingX Agent API ·
+Resend (email) · Cloudflare Turnstile (bot check). Deployed on Vercel (region `bom1`, next to Supabase).
 
 ## Flow
 
-1. On first open, a popup asks for the member's **BingX UID** and **Gmail** (no Telegram login).
-   Both fields are required — the submit button stays disabled until both are filled in.
-   It can be closed ("Để sau"); it asks again on the next visit until a UID is linked. The members
-   section also keeps an inline form.
-2. A successful link is remembered **for 24 hours on that device** (`src/frontend/lib/linkSession.ts`, localStorage).
-   After that the device is treated as not linked and the popup asks again, even mid-visit. The backend
-   member cookie should use the same lifetime (`Max-Age=86400`).
-3. After linking, the page shows the 30-day volume dashboard and the community news feed.
+1. On first open, a popup asks for the member's **BingX UID** and **Gmail**. It can be closed
+   ("Để sau"); it asks again on the next visit until a UID is linked.
+2. **Gửi mã xác thực** (`POST /api/register`): bot check, the UID must be under the partner link
+   (looked up live on BingX if today's sync has not seen it yet), 1 UID = 1 Gmail. A 6-digit code is
+   emailed (valid 10 min, 5 tries; at most 5 codes/hour per Gmail and 10/hour per IP).
+3. **Xác nhận** (`POST /api/verify-otp`): creates the member and membership and sets an httpOnly session
+   cookie for **7 days**. The device also remembers the link for 7 days (`linkSession.ts`). Signing in
+   again later uses the same two steps.
+4. The dashboard shows the current Premium cycle and 30 days of crypto-futures volume.
 
 ## Premium volume rule
 
-Defined once in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) and shown in the dashboard's progress card:
+Defined in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) for the page and in the database function
+`public.evaluate_premium_cycles` for the daily evaluation — keep them in sync.
 
-- Each cycle gives the member **14 days** to reach **60,000$** of trading volume (UTC calendar days).
-- **Reached early** (e.g. day 10): the rest of the 14 days does not count, plus **3 rest days**; the next
-  cycle starts the day after (day 18). Reached exactly on day 14 → rest days 15–17. Volume traded while
-  resting is ignored. The card turns green with a countdown to when counting resumes.
-- From **day 10**, a member still short sees an on-page warning ("còn X ngày — cần thêm $Y (~$Z/ngày)").
-- Still short after day 14 → **24h grace** (day 15). Reaching the target then also earns 3 rest days
-  (next cycle on day 19). Missing it → "Không đạt yêu cầu"; the **backend** must then set
-  `member.status = "kicked"` (the page never removes anyone).
+- Cycles follow the calendar, the same for everyone: **day 1–14** and **day 15–end of month** (UTC).
+  A member is counted from the first day of the cycle they join in.
+- Each cycle needs **68,686$ of crypto-futures volume** = BingX `perpetualFutures` − `tradFi`
+  (TradFi is reported inside perpetualFutures).
+- **Reached early**: the rest of the cycle is rest time and its volume is ignored.
+- **5 days left** and still short: on-page warning + one email.
+- Still short at the end: **24h grace** (the next cycle's first day) + one email. Missing it marks the
+  cycle `failed`, the membership `warned`, and opens a **kick review** for the admin.
 
-Because cycle start dates now depend on when each cycle was reached, the page walks cycles forward from
-an anchor. `/api/me` should send `volume.cycleStart` (first day of the current or most recent cycle,
-`"YYYY-MM-DD"`) and optionally `volume.cycleIndex`. Without them the page walks from `joinedAt`, which is
-only correct while the member's whole history fits inside `daily` (30 days).
+## Data & jobs
 
-Dev mock scenarios: `?mock=fresh|active|soon|met|rest|grace|failed|kicked`.
+- **Schema**: `supabase/migrations/*.sql`, run in order in the Supabase SQL Editor (each file once).
+  RLS is on everywhere with no policies; only the server's secret key can read or write.
+- **Daily sync** (`/api/cron/sync-volume`, 02:00 UTC = 09:00 VN): invitees + the last 16 days of volume
+  from BingX (self-healing upsert), then cycle evaluation, member warning emails, and the admin digest
+  of pending kick reviews (`ADMIN_EMAIL`). `?days=N` (≤365) backfills.
+- **Kick decision**: in Supabase → Table Editor → `kick_reviews`, set `decision` to `approved` (kick) or
+  `rejected` (stay; continues from the calendar cycle containing that day). Triggers apply it and the
+  change is recorded in `audit_log`.
+- **Daily 07:00 email** (`/api/cron/daily-calendar`, 00:00 UTC): today's ForexFactory red-folder events
+  to `public.email_recipients` (active + warned, not unsubscribed). Each message carries a signed
+  one-click unsubscribe link (`/api/unsubscribe`, also Gmail's own button). Manual checks with the cron
+  header: `?preview=1`, `?dry=1`, `?test=you@gmail.com`.
+
+## Routes
+
+| Route | Behaviour |
+| --- | --- |
+| `POST /api/register` `{ uid, email, turnstileToken }` | Step 1: emails a code. `{ ok }` or `{ ok: false, error }` (400/403/409/429/500). |
+| `POST /api/verify-otp` `{ uid, email, code }` | Step 2: sets the 7-day session cookie. |
+| `GET /api/me` | 401 `{ member: null }` without a valid session; otherwise `{ member, volume }`. |
+| `POST /api/auth/logout` | Revokes the session and clears the cookie. |
+| `GET /api/calendar` | This week's high-impact ForexFactory events (cached 15 min). |
+| `GET\|POST /api/unsubscribe?e=&t=` | Confirmation page / stop the 07:00 email. |
+| `GET /api/cron/*` | Vercel Cron only (`Authorization: Bearer $CRON_SECRET`). |
+
+POST routes accept same-origin requests only. Security headers (CSP, frame-ancestors, HSTS) are set in
+`next.config.ts`.
+
+### Economic calendar
+
+forexfactory.com has no public API and blocks automated requests, so `/api/calendar` reads the weekly
+JSON export at `nfs.faireconomy.media/ff_calendar_thisweek.json`, keeps `impact: "High"`, and caches it
+for 15 minutes server-side. Current week only; forecast and previous values, no actual results.
 
 ## Setup
 
 ```bash
 npm install
+cp .env.example .env.local   # fill in the keys (see comments in the file)
 npm run dev
 ```
 
-## Backend contract
-
-All routes are same-origin. There is no Telegram session any more, so the backend identifies the
-member with its own httpOnly cookie:
-
-| Route | Behaviour |
-| --- | --- |
-| `POST /api/register` `{ uid, email }` | Validates the UID against the partner link, then **sets an httpOnly member cookie** (`Max-Age=86400`). Returns `{ ok: true }` or `{ error }` with 400/403/409/429/502. |
-| `GET /api/me` | `{ member: null }` (or 401) when the browser has no member cookie; otherwise `{ member, volume, error? }`. |
-| `GET /api/news` | `{ channel, posts, error? }` |
-| `GET /api/calendar` | **Served by this app** (`src/app/api/calendar/route.ts`): this week's high-impact ("red folder") events from ForexFactory → `{ source, events: [{ id, title, currency, time, forecast, previous }], fetchedAt, error? }`. |
-| `POST /api/auth/logout` | Clears the member cookie ("Đăng xuất"). |
-
-Because anyone can type any UID, the backend should decide how much to trust a new registration
-(e.g. require the Gmail to match a previous registration for that UID, or confirm by email).
-
-### Economic calendar
-
-forexfactory.com has no public API and blocks automated requests (Cloudflare), so `/api/calendar` reads the
-weekly JSON export ForexFactory publishes at `nfs.faireconomy.media/ff_calendar_thisweek.json`, keeps only
-`impact: "High"`, and caches it for 15 minutes server-side (the feed rate-limits frequent callers and sends no
-CORS headers, so the browser cannot call it directly). Limits of that feed: current week only, forecast and
-previous values but **no actual results**. The sidebar's "Lịch đỏ" tab shows upcoming events with a
-countdown, highlights anything within the next hour, and keeps released events for 30 minutes as "Vừa ra".
-
-### Daily 07:00 email (red-folder calendar)
-
-Every day at **07:00 Vietnam time** each active member with a linked Gmail receives that day's red-folder
-events (07:00 today → 07:00 tomorrow, times in GMT+7). Days with no red events send nothing.
-
-- **Schedule** — `vercel.json` runs `/api/cron/daily-calendar` at `0 0 * * *` (00:00 UTC = 07:00 GMT+7).
-  On Vercel's Hobby plan cron may fire any time within that hour; Pro runs on the minute.
-- **Auth** — set `CRON_SECRET` in the Vercel project; Vercel then sends `Authorization: Bearer <secret>`
-  and the route rejects anything else.
-- **Sending** — Resend batch API (`RESEND_API_KEY`, `EMAIL_FROM` on a domain verified in Resend), one
-  message per member, 100 per request, with an `Idempotency-Key` per day so a retried run does not
-  send twice. `EMAIL_REPLY_TO` (optional) receives replies and "Huỷ đăng ký" requests and is used for
-  the `List-Unsubscribe` header.
-- **Recipients — backend contract.** The route calls `MEMBERS_EMAILS_URL` with
-  `Authorization: Bearer $INTERNAL_API_KEY` and expects `{ "emails": ["a@gmail.com", ...] }`: the Gmail
-  addresses of members who are not kicked and have not asked to unsubscribe. Non-Gmail and duplicate
-  addresses are dropped.
-- **Manual checks** (same header): `?preview=1` returns the email HTML (also open without the header
-  under `next dev`), `?dry=1` returns a JSON summary without sending, `?test=you@gmail.com` sends only
-  to that address.
-
 ### Dev mocks
 
-Put `NEXT_PUBLIC_DEV_MOCKS=1` in `.env.development.local` to run without the backend. Switch states with
-`?mock=new|fresh|active|soon|met|rest|grace|failed|kicked|error` (default `new` shows the popup). Mocks only run under
-`next dev`; production builds strip them.
+`NEXT_PUBLIC_DEV_MOCKS=1` runs the page without the backend. Switch states with
+`?mock=new|fresh|active|soon|met|rest|grace|failed|kicked|error`. A dev-only virtual clock
+(`devClock.ts`) moves "today" to the cycle day each scenario needs. Mocks only run under `next dev`.
 
 ## Layout
 
-Toàn bộ code nằm trong `src/`; ngoài gốc chỉ còn file cấu hình.
+Toàn bộ code nằm trong `src/`; ngoài gốc chỉ còn file cấu hình và `supabase/migrations/`.
 
 ```
 src/
-  app/              Next.js routing (bắt buộc giữ tên này) — chỉ là "cửa vào"
-    layout.tsx · page.tsx · globals.css        → trang web, dùng frontend/
-    api/calendar · api/cron/daily-calendar     → API routes, gọi backend/
+  app/              Next.js routing — chỉ là "cửa vào"
+    layout.tsx · page.tsx · globals.css
+    api/register · verify-otp · me · auth/logout · unsubscribe · calendar
+    api/cron/sync-volume · cron/daily-calendar
 
   frontend/         Chạy trên trình duyệt
-    components/     NewsPanel · EconomicCalendar · MemberProvider · LinkModal · SiteNav · Hero
-                    Dashboard · PremiumProgress · RegisterForm · VolumeChart · NewsFeed
+    components/     NewsPanel · EconomicCalendar · MemberProvider · LinkModal · RegisterForm · Turnstile
+                    Dashboard · PremiumProgress · VolumeChart · SiteNav · Hero
                     PremiumSection · QuoteSection · ContactSection · LogoutButton
-    lib/            api.ts (client fetchers) · format.ts · premium.ts (cycle rule) · status.ts
-                    linkSession.ts (24h device link) · clipboard.ts · useNow.ts · env.ts · mocks.ts (dev only)
+    lib/            api.ts · premium.ts (cycle rule) · status.ts · format.ts · linkSession.ts (7-day link)
+                    useNow.ts · devClock.ts · clipboard.ts · env.ts · mocks.ts (dev only)
 
   backend/          Chỉ chạy trên server
-    ffCalendar.ts   ForexFactory feed
-    dailyEmail.ts   07:00 email
+    db.ts           Supabase (PostgREST) client
+    bingx.ts        BingX Agent API (invitees, daily volume, live UID check)
+    session.ts      OTP / session tokens and cookies
+    guard.ts        same-origin check, Turnstile verification
+    email.ts        Resend, templates, unsubscribe links
+    notify.ts       member warnings + admin kick digest
+    cronAuth.ts · ffCalendar.ts · dailyEmail.ts
 
   shared/           Dùng chung cả hai phía
     types.ts · vnTime.ts (GMT+7)

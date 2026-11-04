@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { fmtDateTimeShort, fmtDay, fmtDayFull, fmtUSD } from "@/frontend/lib/format";
-import { PREMIUM_RULE, type CycleProgress } from "@/frontend/lib/premium";
+import type { CycleProgress } from "@/frontend/lib/premium";
 import type { Tone } from "@/frontend/lib/status";
 
 interface Props {
@@ -56,7 +56,7 @@ function badgeFor(p: CycleProgress): string {
     case "failed":
       return "Không đạt";
     default:
-      return `Ngày ${p.dayOfCycle}/${PREMIUM_RULE.cycleDays}`;
+      return `Ngày ${p.dayOfCycle}/${p.cycleDays}`;
   }
 }
 

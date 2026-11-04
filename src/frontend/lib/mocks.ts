@@ -2,8 +2,9 @@
  * DEV-ONLY mock backend. Imported dynamically behind `DEV_MOCKS`, so it never ships
  * in a production bundle. Pick a scenario with `?mock=…` in the URL.
  */
+import { devClockOffset, MOCK_MONTH_DAY } from "./devClock";
 import { readLink } from "./linkSession";
-import type { MeResponse, NewsPost, NewsResponse, RegisterResult } from "@/shared/types";
+import type { MeResponse, RegisterResult } from "@/shared/types";
 
 export type MockScenario =
   | "new"
@@ -28,26 +29,29 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const scenario = () => parseScenario(new URLSearchParams(window.location.search).get("mock"));
 
 /**
- * Each plan places "today" on day `today` of cycle `cycle` (day 1 = cycle start) and
- * spreads volume over day ranges of that cycle. Days not listed get small "rest" volume.
+ * Each plan is set in the first calendar cycle (day 1–14) of the current month: the virtual
+ * clock (devClock.ts) puts "today" on day `MOCK_MONTH_DAY[scenario]`, and volume is spread over
+ * day ranges of that cycle (target 68,686$). Days not listed get small "rest" volume.
  */
 interface Plan {
   cycle: number;
-  today: number;
   segments: Array<[from: number, to: number, total: number]>;
 }
 
 const PLANS: Record<Exclude<MockScenario, "new" | "error">, Plan> = {
-  fresh: { cycle: 1, today: 2, segments: [[1, 2, 3_480]] },
-  active: { cycle: 3, today: 6, segments: [[1, 6, 31_960]] },
-  soon: { cycle: 2, today: 11, segments: [[1, 11, 41_830]] },
-  // Reached on day 10 (52,000 + 11,200), now resting on day 12.
-  met: { cycle: 2, today: 12, segments: [[1, 9, 52_000], [10, 10, 11_200]] },
-  // Reached exactly on day 14, now on the 2nd of the 3 extra rest days.
-  rest: { cycle: 2, today: 16, segments: [[1, 13, 55_000], [14, 14, 6_800]] },
-  grace: { cycle: 3, today: 15, segments: [[1, 14, 52_310], [15, 15, 0]] },
-  failed: { cycle: 2, today: 16, segments: [[1, 15, 48_000], [16, 16, 0]] },
-  kicked: { cycle: 4, today: 3, segments: [[1, 3, 2_150]] },
+  fresh: { cycle: 1, segments: [[1, 2, 3_480]] },
+  active: { cycle: 3, segments: [[1, 6, 31_960]] },
+  // Day 11: 4 days left and short → warning.
+  soon: { cycle: 2, segments: [[1, 11, 41_830]] },
+  // Reached on day 10 (58,000 + 11,200), resting on day 12.
+  met: { cycle: 2, segments: [[1, 9, 58_000], [10, 10, 11_200]] },
+  // Reached on day 5, resting on day 9 until the cycle ends on the 14th.
+  rest: { cycle: 2, segments: [[1, 4, 60_000], [5, 5, 9_500]] },
+  // Day 15 = grace day of the 1–14 cycle.
+  grace: { cycle: 3, segments: [[1, 14, 60_310], [15, 15, 0]] },
+  // Day 16: the grace day passed short.
+  failed: { cycle: 2, segments: [[1, 15, 55_000], [16, 16, 0]] },
+  kicked: { cycle: 4, segments: [[1, 3, 2_150]] },
 };
 
 const isoDay = (dayNumber: number) => new Date(dayNumber * DAY).toISOString().slice(0, 10);
@@ -71,10 +75,11 @@ export async function mockMe(): Promise<MeResponse> {
 }
 
 function meFor(s: keyof typeof PLANS, link: { uid: string; email: string }): MeResponse {
-  const now = Date.now();
+  const now = Date.now() + devClockOffset();
   const plan = PLANS[s];
   const today = Math.floor(now / DAY);
-  const cycleStart = today - (plan.today - 1);
+  // The 1st of the (virtual) month: start of the 1–14 cycle.
+  const cycleStart = today - (MOCK_MONTH_DAY[s] - 1);
   const joinDay = plan.cycle === 1 ? cycleStart : cycleStart - (plan.cycle - 1) * 17;
 
   const planned = new Map<number, number>(
@@ -113,68 +118,4 @@ export async function mockRegister(): Promise<RegisterResult> {
     return { ok: false, error: "UID này không đăng ký BingX qua link đối tác của cộng đồng." };
   }
   return { ok: true };
-}
-
-const BASE_POSTS: Omit<NewsPost, "date">[] = [
-  {
-    id: 412,
-    url: "https://t.me/s/thelastcandle/412",
-    text: "📌 Nhắc lại quy định nhóm Premium:\nMỗi chu kỳ có 14 ngày để đạt 60.000$ volume.\nĐạt sớm → nghỉ hết chu kỳ + 3 ngày (không tính volume).\nNgày 10 chưa đủ → cảnh báo; hết hạn → gia hạn 24 giờ.\n\nKiểm tra tiến độ của bạn ngay trên trang thành viên.",
-    views: 1840,
-    photo: null,
-  },
-  {
-    id: 411,
-    url: "https://t.me/s/thelastcandle/411",
-    text: "BTC giữ vùng hỗ trợ 61.2K sau phiên Mỹ. Khung H4 đang nén biên độ, chờ breakout trước khi vào lệnh mới.\nQuản lý vốn: không quá 2% tài khoản mỗi lệnh.",
-    views: 2310,
-    photo:
-      "data:image/svg+xml;utf8," +
-      encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><rect width="640" height="360" fill="#121821"/><g stroke="#2a3443">${Array.from({ length: 8 }, (_, i) => `<line x1="0" x2="640" y1="${40 + i * 40}" y2="${40 + i * 40}"/>`).join("")}</g>${Array.from({ length: 22 }, (_, i) => { const up = Math.sin(i * 1.7) > -0.2; const h = 20 + Math.abs(Math.sin(i * 2.3)) * 70; const y = 200 - i * 4 - h / 2 + Math.sin(i) * 30; return `<line x1="${30 + i * 27}" x2="${30 + i * 27}" y1="${y - 14}" y2="${y + h + 14}" stroke="${up ? "#3ff0b2" : "#ff5c5c"}"/><rect x="${23 + i * 27}" y="${y}" width="14" height="${h}" fill="${up ? "#3ff0b2" : "#ff5c5c"}"/>`; }).join("")}</svg>`,
-      ),
-  },
-  {
-    id: 410,
-    url: "https://t.me/s/thelastcandle/410",
-    text: "Lịch kinh tế tuần này: CPI Mỹ (thứ Tư), biên bản FOMC (thứ Năm). Biến động có thể tăng mạnh, hãy đặt stop-loss rõ ràng.",
-    views: 1975,
-    photo: null,
-  },
-  {
-    id: 409,
-    url: "https://t.me/s/thelastcandle/409",
-    text: "Tổng kết tháng 9: 63% lệnh tín hiệu đạt TP1, 41% đạt TP2. Chi tiết từng lệnh đã ghim trong nhóm.",
-    views: 3120,
-    photo: null,
-  },
-  {
-    id: 408,
-    url: "https://t.me/s/thelastcandle/408",
-    text: "Thành viên mới nhớ liên kết UID BingX trong vòng 7 ngày sau khi vào nhóm để được xét duyệt.",
-    views: 2688,
-    photo: null,
-  },
-];
-
-let pollCount = 0;
-
-export async function mockNews(): Promise<NewsResponse> {
-  await wait(500);
-  const now = Date.now();
-  const offsets = [5, 48, 3 * 60, 26 * 60, 3 * 24 * 60];
-  const posts: NewsPost[] = BASE_POSTS.map((p, i) => ({ ...p, date: new Date(now - (offsets[i] ?? 0) * 60_000).toISOString() }));
-  // Every poll after the first adds one new post so the "fresh" highlight can be seen.
-  for (let i = 1; i <= pollCount; i++) {
-    posts.unshift({
-      id: 412 + i,
-      url: `https://t.me/s/thelastcandle/${412 + i}`,
-      text: `⚡ Cập nhật nhanh #${i}: ETH vượt kháng cự ngắn hạn, theo dõi phản ứng giá ở vùng retest.`,
-      date: Math.floor(now / 1000) - 20,
-      views: 120 * i,
-      photo: null,
-    });
-  }
-  pollCount++;
-  return { channel: "thelastcandle", posts };
 }

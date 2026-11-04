@@ -16,7 +16,7 @@ interface MemberContextValue {
   expiresAt: number | null;
   /** Re-fetch /api/me, showing the skeleton while it loads. */
   reload: () => void;
-  /** Call after a successful POST /api/register: remembers the link for 24h on this device. */
+  /** Call after a successful OTP check: remembers the link for 7 days on this device. */
   markLinked: (uid: string, email: string) => void;
   /** Forget this device's link and clear the backend cookie. */
   signOut: () => Promise<void>;
@@ -40,7 +40,7 @@ export function MemberProvider({ children }: { children: ReactNode }) {
   const load = useCallback(async (signal?: AbortSignal) => {
     const link = readLink();
     if (!link) {
-      // No link saved on this device within the last 24h: ask for UID + Gmail again,
+      // No link saved on this device within the last 7 days: ask for UID + Gmail again,
       // and drop any older backend cookie so the two never disagree.
       setExpiresAt(null);
       setState(NOT_LINKED);
@@ -68,7 +68,7 @@ export function MemberProvider({ children }: { children: ReactNode }) {
     return () => ctrl.abort();
   }, [load]);
 
-  // When the 24h window ends while the page is open, forget the link and ask again.
+  // When the 7-day window ends while the page is open, forget the link and ask again.
   useEffect(() => {
     if (expiresAt === null) return;
     const id = window.setTimeout(() => {

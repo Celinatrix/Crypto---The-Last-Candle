@@ -1,6 +1,6 @@
 import { DEV_MOCKS } from "./env";
 
-import type { CalendarResponse, MeResponse, NewsResponse, RegisterResult } from "@/shared/types";
+import type { CalendarResponse, MeResponse, RegisterResult } from "@/shared/types";
 
 // Each mock branch repeats the inline NODE_ENV check so webpack can drop the
 // dynamic import (and the mock chunk) from production builds.
@@ -37,11 +37,12 @@ const REGISTER_FALLBACK: Record<number, string> = {
   400: "UID hoặc email không hợp lệ.",
   403: "UID này không đăng ký BingX qua link đối tác của cộng đồng.",
   409: "UID này đã được liên kết với một Gmail khác.",
-  429: "Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.",
+  429: "Bạn đã yêu cầu quá nhiều mã. Vui lòng thử lại sau 1 giờ.",
   502: "Không kết nối được tới BingX. Vui lòng thử lại sau.",
 };
 
-export async function registerMember(uid: string, email: string): Promise<RegisterResult> {
+/** Step 1 of linking: emails a 6-digit code. `turnstileToken` is the bot-check token, if enabled. */
+export async function registerMember(uid: string, email: string, turnstileToken?: string): Promise<RegisterResult> {
   if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./mocks")).mockRegister();
 
   let res: Response;
@@ -50,7 +51,7 @@ export async function registerMember(uid: string, email: string): Promise<Regist
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, email }),
+      body: JSON.stringify({ uid, email, turnstileToken }),
     });
   } catch {
     return { ok: false, error: "Mất kết nối mạng. Vui lòng kiểm tra và thử lại." };
@@ -63,15 +64,24 @@ export async function registerMember(uid: string, email: string): Promise<Regist
   };
 }
 
-export async function fetchNews(signal?: AbortSignal): Promise<NewsResponse> {
-  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./mocks")).mockNews();
+/** Step 2 of linking: the 6-digit code emailed by registerMember. Sets the session cookie. */
+export async function verifyOtp(uid: string, email: string, code: string): Promise<RegisterResult> {
+  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./mocks")).mockRegister();
 
-  const res = await fetch("/api/news", { cache: "no-store", signal });
-  const body = await readJson(res);
-  if (!isRecord(body) || !Array.isArray(body.posts)) {
-    throw new Error(errorOf(body) ?? "Không tải được tin tức.");
+  let res: Response;
+  try {
+    res = await fetch("/api/verify-otp", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid, email, code }),
+    });
+  } catch {
+    return { ok: false, error: "Mất kết nối mạng. Vui lòng kiểm tra và thử lại." };
   }
-  return body as unknown as NewsResponse;
+  const body = await readJson(res);
+  if (res.ok && isRecord(body) && body.ok === true) return { ok: true };
+  return { ok: false, error: errorOf(body) ?? "Không xác thực được mã. Vui lòng thử lại." };
 }
 
 /** High-impact economic events of this week, served by our own /api/calendar proxy. */

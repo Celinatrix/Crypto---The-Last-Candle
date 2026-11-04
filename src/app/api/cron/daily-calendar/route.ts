@@ -1,6 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { renderDailyEmail } from "@/backend/dailyEmail";
+import { cronAuthorized } from "@/backend/cronAuth";
+import { renderDailyEmail, UNSUBSCRIBE_PLACEHOLDER } from "@/backend/dailyEmail";
+import { select } from "@/backend/db";
+import { sendBatch, unsubscribeHeaders, unsubscribeUrl } from "@/backend/email";
 import { fetchRedEvents } from "@/backend/ffCalendar";
 import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 
@@ -8,8 +10,8 @@ import { vnDayAt, vnDayKey } from "@/shared/vnTime";
  * Daily 07:00 (Vietnam time) email with today's ForexFactory red-folder events.
  *
  * Triggered by Vercel Cron (vercel.json: "0 0 * * *" = 00:00 UTC = 07:00 GMT+7), which
- * sends `Authorization: Bearer $CRON_SECRET`. Recipients come from the backend's internal
- * endpoint; emails go out through Resend, one message per member.
+ * sends `Authorization: Bearer $CRON_SECRET`. Recipients come from public.email_recipients;
+ * emails go out through Resend, one message per member with its own unsubscribe link.
  *
  * Manual checks (same Authorization header):
  *   ?preview=1        → returns the email HTML, sends nothing
@@ -19,79 +21,43 @@ import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const RESEND_BATCH_URL = "https://api.resend.com/emails/batch";
 const BATCH_SIZE = 100; // Resend batch limit
 const GMAIL_RE = /^[a-z0-9.+_-]+@(gmail|googlemail)\.com$/i;
 
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const given = Buffer.from(req.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
-/** Active members' Gmail addresses from the backend (see README "Daily email"). */
+/** Active + warned members who have not unsubscribed (public.email_recipients). */
 async function fetchRecipients(): Promise<string[]> {
-  const url = process.env.MEMBERS_EMAILS_URL;
-  const key = process.env.INTERNAL_API_KEY;
-  if (!url || !key) throw new Error("MEMBERS_EMAILS_URL / INTERNAL_API_KEY chưa được cấu hình");
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Backend trả về HTTP ${res.status}`);
-  const body: unknown = await res.json();
-  const emails =
-    typeof body === "object" && body !== null && Array.isArray((body as { emails?: unknown }).emails)
-      ? (body as { emails: unknown[] }).emails
-      : [];
-  const clean = emails.filter((e): e is string => typeof e === "string").map((e) => e.trim().toLowerCase());
+  const rows = await select<{ email: string }>("email_recipients", "select=email");
+  const clean = rows.map((r) => r.email.trim().toLowerCase());
   return [...new Set(clean.filter((e) => GMAIL_RE.test(e)))];
 }
 
-async function sendBatch(
+/** One message per recipient, each with its own signed one-click unsubscribe link. */
+async function sendDaily(
   recipients: string[],
   email: ReturnType<typeof renderDailyEmail>,
+  siteUrl: string,
   idempotencyKey: string,
 ): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) throw new Error("RESEND_API_KEY / EMAIL_FROM chưa được cấu hình");
-  const replyTo = process.env.EMAIL_REPLY_TO;
-
-  const payload = recipients.map((to) => ({
-    from,
-    to: [to],
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    ...(replyTo
-      ? {
-          reply_to: replyTo,
-          headers: { "List-Unsubscribe": `<mailto:${replyTo}?subject=Huy%20dang%20ky>` },
-        }
-      : {}),
-  }));
-
-  const res = await fetch(RESEND_BATCH_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      // Makes a retried cron run for the same day/batch a no-op instead of a duplicate email.
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify(payload),
+  const messages = recipients.map((to) => {
+    const url = unsubscribeUrl(siteUrl, to);
+    return {
+      to,
+      subject: email.subject,
+      // The placeholder sits in an href / plain text; the URL only holds [A-Za-z0-9%._~=&?/:-].
+      html: email.html.replaceAll(UNSUBSCRIBE_PLACEHOLDER, url.replaceAll("&", "&amp;")),
+      text: email.text.replaceAll(UNSUBSCRIBE_PLACEHOLDER, url),
+      headers: unsubscribeHeaders(url),
+    };
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Resend HTTP ${res.status} ${detail.slice(0, 200)}`);
-  }
+  // The idempotency key makes a retried cron run for the same day/batch a no-op.
+  await sendBatch(messages, idempotencyKey);
 }
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   // Local convenience: `next dev` may open ?preview=1 in a browser without the secret.
   const devPreview = process.env.NODE_ENV === "development" && params.has("preview");
-  if (!devPreview && !authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!devPreview && !cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const now = Date.now();
   // Report window: 07:00 today → 07:00 tomorrow, Vietnam time.
@@ -138,7 +104,7 @@ export async function GET(req: NextRequest) {
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
       const chunk = recipients.slice(i, i + BATCH_SIZE);
       try {
-        await sendBatch(chunk, email, `daily-calendar-${day}-${test ? "test" : "all"}-${i / BATCH_SIZE}`);
+        await sendDaily(chunk, email, siteUrl, `daily-calendar-${day}-${test ? "test" : "all"}-${i / BATCH_SIZE}`);
         sent += chunk.length;
       } catch (err) {
         failures.push((err as Error).message);

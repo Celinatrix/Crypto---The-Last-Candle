@@ -1,11 +1,11 @@
 /**
- * Remembers a successful UID + Gmail link on this device for 24 hours.
- * After that the page treats the device as "not linked" and asks again.
+ * Remembers a successful UID + Gmail link on this device for 7 days (same as the server's
+ * session cookie). After that the page treats the device as "not linked" and asks again.
  * localStorage is per browser/device, so each device keeps its own record.
  */
 
 const KEY = "tlc_link_v1";
-export const LINK_TTL_MS = 24 * 60 * 60 * 1000;
+export const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface LinkRecord {
   uid: string;

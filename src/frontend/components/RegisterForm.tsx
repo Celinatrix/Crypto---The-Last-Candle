@@ -1,7 +1,11 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
-import { registerMember } from "@/frontend/lib/api";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { registerMember, verifyOtp } from "@/frontend/lib/api";
+import Turnstile, { turnstileEnabled, type TurnstileHandle } from "./Turnstile";
+
+/** Wait before "Gửi lại mã" can be pressed again (the server allows 5 codes per hour). */
+const RESEND_COOLDOWN_S = 60;
 
 interface Props {
   mode: "new" | "edit";
@@ -32,7 +36,35 @@ export default function RegisterForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  // Step 2: the Gmail the code was sent to (null while still on step 1).
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  // Bot check: a single-use token from Turnstile (always "ready" when Turnstile is off).
+  const [botToken, setBotToken] = useState<string | null>(null);
+  const [botLoadFailed, setBotLoadFailed] = useState(false);
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const botReady = !turnstileEnabled || botToken !== null;
+  // Seconds until the code can be re-sent.
+  const [cooldown, setCooldown] = useState(0);
   const ids = useId();
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = window.setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [cooldown]);
+
+  const onBotToken = useCallback((t: string | null) => setBotToken(t), []);
+  const onBotLoadError = useCallback(() => setBotLoadFailed(true), []);
+
+  /** Ask for a code; the Turnstile token is used up either way, so get a fresh one. */
+  async function requestCode(cleanEmail: string) {
+    try {
+      return await registerMember(uid, cleanEmail, botToken ?? undefined);
+    } finally {
+      turnstileRef.current?.reset();
+    }
+  }
 
   const uidInvalid = touched && !UID_RE.test(uid);
   const emailInvalid = touched && !GMAIL_RE.test(email.trim());
@@ -46,18 +78,145 @@ export default function RegisterForm({
     setTouched(true);
     setError(null);
     const cleanEmail = email.trim().toLowerCase();
-    if (!bothFilled || !UID_RE.test(uid) || !GMAIL_RE.test(cleanEmail)) return;
+    if (!bothFilled || !UID_RE.test(uid) || !GMAIL_RE.test(cleanEmail) || !botReady) return;
 
     setSubmitting(true);
     try {
-      const result = await registerMember(uid, cleanEmail);
-      if (result.ok) onSuccess(uid, cleanEmail);
+      const result = await requestCode(cleanEmail);
+      if (result.ok) {
+        setCode("");
+        setSentTo(cleanEmail);
+        setCooldown(RESEND_COOLDOWN_S);
+      } else setError(result.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function verify(value: string) {
+    if (!sentTo || !/^\d{6}$/.test(value) || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await verifyOtp(uid, sentTo, value);
+      if (result.ok) onSuccess(uid, sentTo);
       else setError(result.error);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleVerify(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void verify(code);
+  }
+
+  async function resend() {
+    if (!sentTo || cooldown > 0 || !botReady) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await requestCode(sentTo);
+      if (result.ok) {
+        setCode("");
+        setCooldown(RESEND_COOLDOWN_S);
+      } else setError(result.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const botNote = botLoadFailed ? (
+    <p className="field__hint is-error">
+      Không tải được bước xác minh chống bot. Hãy tắt trình chặn quảng cáo cho trang này hoặc tải lại trang.
+    </p>
+  ) : null;
+
+  if (sentTo) {
+    return (
+      <form className="form" onSubmit={handleVerify} noValidate aria-busy={submitting}>
+        <header className="card__head">
+          <h3 id={titleId} className="card__title">Nhập mã xác thực</h3>
+          <p className="card__text">
+            Mã 6 chữ số đã được gửi tới <strong>{sentTo}</strong>. Mã có hiệu lực 10 phút. Không thấy email? Hãy xem
+            thư mục Spam hoặc Quảng cáo.
+          </p>
+        </header>
+
+        <div className="field">
+          <label className="label" htmlFor={`${ids}-code`}>
+            Mã xác thực
+          </label>
+          <input
+            id={`${ids}-code`}
+            className="input input--mono"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="123456"
+            value={code}
+            onChange={(e) => {
+              const next = e.target.value.replace(/\D/g, "").slice(0, 6);
+              setCode(next);
+              // Pasting or typing the 6th digit submits right away.
+              if (next.length === 6 && next !== code) void verify(next);
+            }}
+            disabled={submitting}
+            autoFocus
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="alert alert--danger" role="alert">
+            {error}
+          </div>
+        )}
+
+        {/* Needed only for "Gửi lại mã"; shown once the cooldown is over. */}
+        {cooldown === 0 && (
+          <>
+            <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} />
+            {botNote}
+          </>
+        )}
+
+        <div className="form__actions">
+          <button type="submit" className="btn btn--primary" disabled={submitting || code.length !== 6}>
+            {submitting && <span className="spinner" aria-hidden="true" />}
+            {submitting ? "Đang xác thực…" : "Xác nhận"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={resend}
+            disabled={submitting || cooldown > 0 || !botReady}
+            aria-live="polite"
+          >
+            {cooldown > 0 ? `Gửi lại sau ${cooldown}s` : "Gửi lại mã"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              setSentTo(null);
+              setError(null);
+              setBotToken(null);
+            }}
+            disabled={submitting}
+          >
+            Sửa UID / Gmail
+          </button>
+        </div>
+      </form>
+    );
   }
 
   return (
@@ -134,15 +293,18 @@ export default function RegisterForm({
           : "Bắt buộc nhập cả UID BingX và Gmail."}
       </p>
 
+      <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} />
+      {botNote}
+
       <div className="form__actions">
         <button
           type="submit"
           className="btn btn--primary"
-          disabled={submitting || !bothFilled}
+          disabled={submitting || !bothFilled || !botReady}
           aria-describedby={`${ids}-required`}
         >
           {submitting && <span className="spinner" aria-hidden="true" />}
-          {submitting ? "Đang kiểm tra với BingX…" : "Kiểm tra khối lượng"}
+          {submitting ? "Đang kiểm tra với BingX…" : "Gửi mã xác thực"}
         </button>
         {onCancel && (
           <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={submitting}>

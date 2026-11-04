@@ -54,7 +54,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         deadline: p.resumesAt,
         alert: `Đã đạt ${REQ} cho chu kỳ #${p.index}${p.metDay ? ` vào ngày ${fmtDayFull(p.metDay)}` : ""}. Bạn đang nghỉ — volume sẽ được tính lại từ ${resume}.`,
         noteTitle: `Đang nghỉ đến hết ngày ${restUntil}.`,
-        noteBody: `Volume giao dịch trong thời gian nghỉ không được tính. Chu kỳ #${p.index + 1} bắt đầu ngày ${resume}, khi đó bạn lại có ${PREMIUM_RULE.cycleDays} ngày để đạt ${REQ}.`,
+        noteBody: `Volume giao dịch trong thời gian nghỉ không được tính. Chu kỳ #${p.index + 1} bắt đầu ngày ${resume}, khi đó bạn lại cần đạt ${REQ} trước cuối chu kỳ.`,
         progress: p,
       };
     }
@@ -65,7 +65,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         deadline: p.graceDeadline,
         alert: `Chu kỳ #${p.index} chưa đạt — cần thêm ${fmtUSD(p.remaining)} trước ${fmtDateTime(p.graceDeadline)}.`,
         noteTitle: `Gia hạn 24 giờ: cần thêm ${fmtUSD(p.remaining)}.`,
-        noteBody: `Hết 14 ngày bạn đạt ${fmtUSD(p.volume)} / ${REQ}. Đạt đủ trong 24 giờ gia hạn thì vẫn được nghỉ 3 ngày; nếu đến ${fmtDateTime(p.graceDeadline)} vẫn chưa đủ, bạn sẽ bị xoá khỏi nhóm Premium.`,
+        noteBody: `Hết chu kỳ bạn đạt ${fmtUSD(p.volume)} / ${REQ}. Đạt đủ trong 24 giờ gia hạn thì vẫn được giữ lại; nếu đến ${fmtDateTime(p.graceDeadline)} vẫn chưa đủ, bạn sẽ bị xoá khỏi nhóm Premium.`,
         progress: p,
       };
     case "failed":
@@ -83,7 +83,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         tone: "warn",
         alert: `Còn ${p.daysLeft} ngày — cần thêm ${fmtUSD(p.remaining)} (khoảng ${perDay}/ngày).`,
         noteTitle: `Cảnh báo: còn ${p.daysLeft} ngày, cần thêm ${fmtUSD(p.remaining)}.`,
-        noteBody: `Bạn đang ở ngày ${p.dayOfCycle}/${PREMIUM_RULE.cycleDays} và chưa đạt ${REQ}. Hãy giao dịch khoảng ${perDay} mỗi ngày để kịp hạn ${fmtDateTime(p.deadline)}. Quá hạn sẽ có thêm 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.`,
+        noteBody: `Bạn đang ở ngày ${p.dayOfCycle}/${p.cycleDays} và chưa đạt ${REQ}. Hãy giao dịch khoảng ${perDay} mỗi ngày để kịp hạn ${fmtDateTime(p.deadline)}. Quá hạn sẽ có thêm 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.`,
         progress: p,
       };
     default:
@@ -91,7 +91,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         label: "Đang hoạt động",
         tone: "ok",
         noteTitle: `Còn ${p.daysLeft} ngày để đạt ${REQ}.`,
-        noteBody: `Bạn cần thêm ${fmtUSD(p.remaining)}, trung bình khoảng ${perDay} mỗi ngày. Đạt sớm thì những ngày còn lại cộng thêm 3 ngày sẽ là thời gian nghỉ. Từ ngày ${PREMIUM_RULE.warnFromDay}, nếu chưa đủ bạn sẽ nhận cảnh báo.`,
+        noteBody: `Bạn cần thêm ${fmtUSD(p.remaining)}, trung bình khoảng ${perDay} mỗi ngày. Chu kỳ ${fmtDayFull(p.startDay)} – ${fmtDayFull(p.endDay)} tính cả volume từ ngày đầu chu kỳ. Đạt sớm thì những ngày còn lại là thời gian nghỉ. Khi còn ${PREMIUM_RULE.warnDaysLeft} ngày mà chưa đủ, bạn sẽ nhận cảnh báo.`,
         progress: p,
       };
   }

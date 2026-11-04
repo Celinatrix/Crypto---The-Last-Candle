@@ -34,22 +34,6 @@ export type MeResponse =
   | { member: null; volume?: null; error?: string }
   | { member: Member; volume: VolumeSummary | null; error?: string };
 
-export interface NewsPost {
-  id: number | string;
-  url: string;
-  text: string;
-  /** ISO string or unix timestamp (seconds or ms) */
-  date: string | number;
-  views: number | null;
-  photo: string | null;
-}
-
-export interface NewsResponse {
-  channel: string;
-  posts: NewsPost[];
-  error?: string;
-}
-
 export type RegisterResult = { ok: true } | { ok: false; error: string };
 
 /** A high-impact ("red folder") economic calendar event. */

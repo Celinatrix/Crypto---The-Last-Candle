@@ -26,9 +26,10 @@ export default function Home() {
               <span className="members__title-vi">Khối lượng giao dịch 30 ngày của bạn.</span>
             </h2>
             <p className="members__lead">
-              Mỗi chu kỳ bạn có 14 ngày để đạt tối thiểu 60.000$ khối lượng giao dịch. Đạt sớm thì những ngày còn lại
-              cùng 3 ngày tiếp theo là thời gian nghỉ, volume không được tính. Từ ngày thứ 10 nếu chưa đủ, bạn sẽ thấy
-              cảnh báo; hết 14 ngày còn 24 giờ gia hạn, sau đó sẽ bị xoá khỏi nhóm.
+              Mỗi tháng có 2 chu kỳ cố định: ngày 1–14 và ngày 15–cuối tháng. Mỗi chu kỳ cần tối thiểu 68.686$ khối
+              lượng giao dịch, tính từ ngày đầu chu kỳ. Đạt sớm thì những ngày còn lại là thời gian nghỉ, volume không
+              được tính. Còn 5 ngày mà chưa đủ, bạn sẽ thấy cảnh báo; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá
+              khỏi nhóm.
             </p>
           </header>
 
@@ -44,16 +45,17 @@ export default function Home() {
                 </li>
                 <li className="rule">
                   <span className="rule__num num">02</span>
-                  <h3 className="rule__title">60.000$ trong 14 ngày</h3>
+                  <h3 className="rule__title">68.686$ mỗi nửa tháng</h3>
                   <p className="rule__text">
-                    Đạt sớm thì phần còn lại của chu kỳ và 3 ngày sau đó là thời gian nghỉ, không tính volume.
+                    Chu kỳ 1–14 và 15–cuối tháng. Đạt sớm thì phần còn lại của chu kỳ là thời gian nghỉ, không tính
+                    volume.
                   </p>
                 </li>
                 <li className="rule">
                   <span className="rule__num num">03</span>
-                  <h3 className="rule__title">Ngày 10 &amp; gia hạn 24 giờ</h3>
+                  <h3 className="rule__title">Cảnh báo &amp; gia hạn 24 giờ</h3>
                   <p className="rule__text">
-                    Ngày 10 chưa đủ sẽ có cảnh báo. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
+                    Còn 5 ngày mà chưa đủ sẽ có cảnh báo. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
                   </p>
                 </li>
               </ol>
