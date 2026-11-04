@@ -28,7 +28,7 @@ export default function Home() {
             <p className="members__lead">
               Mỗi tháng có 2 chu kỳ cố định: ngày 1–14 và ngày 15–cuối tháng. Mỗi chu kỳ cần tối thiểu 68.686$ khối
               lượng giao dịch, tính từ ngày đầu chu kỳ. Đạt sớm thì những ngày còn lại là thời gian nghỉ, volume không
-              được tính. Còn 5 ngày mà chưa đủ, bạn sẽ thấy cảnh báo; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá
+              được tính. Còn 3 ngày mà chưa đủ, bạn sẽ nhận cảnh báo qua Gmail; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá
               khỏi nhóm.
             </p>
           </header>
@@ -55,7 +55,7 @@ export default function Home() {
                   <span className="rule__num num">03</span>
                   <h3 className="rule__title">Cảnh báo &amp; gia hạn 24 giờ</h3>
                   <p className="rule__text">
-                    Còn 5 ngày mà chưa đủ sẽ có cảnh báo. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
+                    Còn 3 ngày mà chưa đủ sẽ có email nhắc. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
                   </p>
                 </li>
               </ol>

@@ -19,7 +19,8 @@ export const PREMIUM_RULE = {
   requiredUsd: 68_686,
   /** Day of the month on which the second cycle starts. */
   secondHalfFrom: 15,
-  warnDaysLeft: 5,
+  /** Matches public.cycle_notices (reminder email). */
+  warnDaysLeft: 3,
 } as const;
 
 const DAY_MS = 86_400_000;

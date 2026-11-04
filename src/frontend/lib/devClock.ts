@@ -8,7 +8,7 @@ import { DEV_MOCKS } from "./env";
 export const MOCK_MONTH_DAY = {
   fresh: 2,
   active: 6,
-  soon: 11,
+  soon: 12,
   met: 12,
   rest: 9,
   grace: 15,

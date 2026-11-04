@@ -41,8 +41,8 @@ interface Plan {
 const PLANS: Record<Exclude<MockScenario, "new" | "error">, Plan> = {
   fresh: { cycle: 1, segments: [[1, 2, 3_480]] },
   active: { cycle: 3, segments: [[1, 6, 31_960]] },
-  // Day 11: 4 days left and short → warning.
-  soon: { cycle: 2, segments: [[1, 11, 41_830]] },
+  // Day 12: 3 days left and short → warning.
+  soon: { cycle: 2, segments: [[1, 12, 41_830]] },
   // Reached on day 10 (58,000 + 11,200), resting on day 12.
   met: { cycle: 2, segments: [[1, 9, 58_000], [10, 10, 11_200]] },
   // Reached on day 5, resting on day 9 until the cycle ends on the 14th.

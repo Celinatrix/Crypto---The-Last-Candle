@@ -1,6 +1,6 @@
 /**
  * Emails sent after the morning sync (cron/sync-volume), once cycles are evaluated:
- *  - members: "5 days left" warning and the 24h grace-day notice, once per cycle each;
+ *  - members: "3 days left" reminder and the 24h grace-day notice, once per cycle each;
  *  - admin:   digest of kick reviews waiting for a decision (ADMIN_EMAIL, comma-separated).
  */
 import { rpc, select, upsert } from "./db";

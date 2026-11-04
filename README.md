@@ -26,7 +26,7 @@ Defined in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) for the page and in th
 - Each cycle needs **68,686$ of crypto-futures volume** = BingX `perpetualFutures` − `tradFi`
   (TradFi is reported inside perpetualFutures).
 - **Reached early**: the rest of the cycle is rest time and its volume is ignored.
-- **5 days left** and still short: on-page warning + one email.
+- **3 days left** and still short: on-page warning + one reminder email to the member's linked Gmail.
 - Still short at the end: **24h grace** (the next cycle's first day) + one email. Missing it marks the
   cycle `failed`, the membership `warned`, and opens a **kick review** for the admin.
 
