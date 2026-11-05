@@ -30,7 +30,6 @@
 
   --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-serif: var(--font-instrument), "Instrument Serif", Georgia, serif;
-  --font-script: var(--font-dancing), "Dancing Script", cursive;
 
   color-scheme: dark;
 }
@@ -318,10 +317,25 @@ input {
   box-shadow: none;
 }
 
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34em;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.wordmark svg {
+  flex: none;
+  width: 0.56em;
+  height: 0.88em;
+}
+
 .nav__brand {
-  font-family: var(--font-script);
-  font-size: 30px;
-  font-weight: 600;
+  font-size: 28px;
   line-height: 1;
   color: #fff;
   text-decoration: none;
@@ -2186,7 +2200,6 @@ h2.tabs__tab {
 }
 
 .site-footer__brand {
-  font-family: var(--font-script);
   font-size: 24px;
   color: var(--text-80);
 }
@@ -2479,7 +2492,6 @@ h2.tabs__tab {
 }
 
 .admin__brand {
-  font-family: var(--font-script);
   font-size: 22px;
 }
 

@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Dancing_Script, Instrument_Serif, Inter } from "next/font/google";
+import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 
-// Inter and Dancing Script ship Vietnamese glyphs; Instrument Serif is Latin-only,
-// so it is reserved for the English display lines.
+// Inter ships Vietnamese glyphs; Instrument Serif is Latin-only,
+// so it is reserved for the English display lines and the wordmark.
 const inter = Inter({
   subsets: ["latin", "latin-ext", "vietnamese"],
   weight: ["300", "400", "500", "600", "700", "800", "900"],
@@ -16,13 +16,6 @@ const instrument = Instrument_Serif({
   weight: "400",
   style: ["normal", "italic"],
   variable: "--font-instrument",
-  display: "swap",
-});
-
-const dancing = Dancing_Script({
-  subsets: ["latin", "latin-ext", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-dancing",
   display: "swap",
 });
 
@@ -57,7 +50,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${inter.variable} ${instrument.variable} ${dancing.variable}`}>
+    <html lang="vi" className={`${inter.variable} ${instrument.variable}`}>
       <body>{children}</body>
     </html>
   );

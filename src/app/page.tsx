@@ -7,6 +7,7 @@ import MembersSection from "@/frontend/components/MembersSection";
 import PremiumSection from "@/frontend/components/PremiumSection";
 import QuoteSection from "@/frontend/components/QuoteSection";
 import SiteNav from "@/frontend/components/SiteNav";
+import Wordmark from "@/frontend/components/Wordmark";
 
 export default function Home() {
   return (
@@ -22,7 +23,9 @@ export default function Home() {
         </main>
 
         <footer className="site-footer">
-          <span className="site-footer__brand">The Last Candle</span>
+          <span className="site-footer__brand">
+            <Wordmark />
+          </span>
           <p>Dữ liệu khối lượng lấy từ BingX Agent API, có thể trễ khoảng 1 ngày. Trang không thuộc sở hữu của BingX.</p>
           <p className="site-footer__legal">
             Giao dịch tiền mã hoá, nhất là có đòn bẩy, có rủi ro cao và có thể mất toàn bộ vốn. Nội dung trên trang, kể cả tín

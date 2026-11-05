@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import LogoutButton from "./LogoutButton";
 import { useLinkedMember, useMember } from "./MemberProvider";
+import Wordmark from "./Wordmark";
 
 interface NavLink {
   href: string;
@@ -64,7 +65,7 @@ export default function SiteNav() {
     <>
       <header className={`nav${scrolled ? " nav--scrolled" : ""}${open ? " nav--open" : ""}`}>
         <a className="nav__brand" href="#top" onClick={close}>
-          The Last Candle
+          <Wordmark />
         </a>
 
         <nav className="nav__links" aria-label="Điều hướng chính">

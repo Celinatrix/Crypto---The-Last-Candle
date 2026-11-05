@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Wordmark from "./Wordmark";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import AdminStats from "@/frontend/components/AdminStats";
 import Turnstile, { turnstileEnabled, type TurnstileHandle } from "@/frontend/components/Turnstile";
@@ -83,7 +84,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="admin admin--login">
       <div className="admin__login-card liquid-glass">
-        <p className="admin__brand">The Last Candle</p>
+        <p className="admin__brand"><Wordmark /></p>
         <h1 className="card__title">Trang quản trị</h1>
         <Link className="admin__home" href="/">
           ← Về trang chủ
@@ -275,7 +276,7 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
     <main className="admin">
       <header className="admin__top">
         <div>
-          <p className="admin__brand">The Last Candle</p>
+          <p className="admin__brand"><Wordmark /></p>
           <h1 className="admin__title">Trang quản trị</h1>
           <p className="admin__meta num">
             Chu kỳ {fmtDayFull(cycle.start)} – {fmtDayFull(cycle.end)} · Mục tiêu {fmtUSD(cycle.target)}
