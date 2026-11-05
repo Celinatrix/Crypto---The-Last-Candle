@@ -445,7 +445,15 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
                     <td data-label="UID" className="num">{m.uid}</td>
                     <td data-label="Gmail" className="admin__cell-email">{m.email}</td>
                     <td data-label="Trạng thái">
-                      <span className={`admin__badge is-${STATUS[m.status].tone}`}>{STATUS[m.status].label}</span>
+                      <div className="admin__status">
+                        <span className={`admin__badge is-${STATUS[m.status].tone}`}>{STATUS[m.status].label}</span>
+                        {m.rejoin?.ready && <span className="admin__badge is-ok admin__rejoin-badge">Đủ điều kiện quay lại</span>}
+                        {m.rejoin && (
+                          <p className="admin__rejoin num">
+                            Sau khi xoá: {fmtUSD(m.rejoin.volume)} / {fmtUSD(m.rejoin.target)}
+                          </p>
+                        )}
+                      </div>
                     </td>
                     <td data-label="Volume" className="is-num num">{fmtUSD(m.volume)}</td>
                     <td data-label="Còn thiếu" className={`is-num num${m.shortfall === 0 ? " is-ok" : ""}`}>

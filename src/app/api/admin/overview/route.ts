@@ -6,6 +6,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { currentAdmin } from "@/backend/admin";
 import { rpc, select, selectAll } from "@/backend/db";
+import { isRejoinReady } from "@/backend/notify";
+import type { RejoinNotice } from "@/backend/email";
 import { calendarCycle, PREMIUM_RULE } from "@/frontend/lib/premium";
 import type { AdminMember, AdminOverview } from "@/shared/types";
 
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
     const end = isoOf(cycle.end);
     const target = PREMIUM_RULE.requiredUsd;
 
-    const [report, overview, kicks, syncs] = await Promise.all([
+    const [report, overview, kicks, syncs, kicked] = await Promise.all([
       rpc<ReportRow[]>("cycle_report", { p_start: start, p_end: end }),
       selectAll<OverviewRow>("member_overview", "member_id"),
       select<KickRow>("pending_kick_reviews", "select=review_id,bingx_uid,email,start_day,end_day,counted_volume,target_usd"),
@@ -56,13 +58,16 @@ export async function GET(req: NextRequest) {
         "sync_runs",
         "select=status,started_at,finished_at&order=id.desc&limit=1",
       ),
+      rpc<RejoinNotice[]>("kicked_progress", {}),
     ]);
 
     const volumes = new Map(report.map((r) => [r.uid, { volume: Number(r.volume) || 0, tradeDays: r.trade_days }]));
     const memberUids = new Set(overview.map((m) => m.bingx_uid));
+    const rejoin = new Map(kicked.map((k) => [k.member_id, k]));
 
     const members: AdminMember[] = overview.map((m) => {
       const v = volumes.get(m.bingx_uid) ?? { volume: 0, tradeDays: 0 };
+      const out = rejoin.get(m.member_id);
       return {
         memberId: m.member_id,
         uid: String(m.bingx_uid),
@@ -72,6 +77,7 @@ export async function GET(req: NextRequest) {
         volume: v.volume,
         tradeDays: v.tradeDays,
         shortfall: Math.max(0, target - v.volume),
+        rejoin: out ? { volume: Number(out.volume_since) || 0, target: Number(out.target) || target, ready: isRejoinReady(out) } : null,
       };
     });
 

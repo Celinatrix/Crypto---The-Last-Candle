@@ -63,7 +63,7 @@ export default function PremiumSection() {
           <p className="step__note">
             Đây là vốn để anh em tự trade, <strong>không phải phí</strong> vào Premium.
           </p>
-          <span className="step__badge">Hoàn toàn miễn phí</span>
+          <span className="step__badge">Miễn phí tham gia</span>
         </li>
 
         <li className="step liquid-glass">

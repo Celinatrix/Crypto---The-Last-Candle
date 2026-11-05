@@ -40,8 +40,9 @@ export default function MembersSection() {
               <span className="rule__num num">03</span>
               <h3 className="rule__title">Cảnh báo &amp; gia hạn 24 giờ</h3>
               <p className="rule__text">
-                Còn 3 ngày mà chưa đủ sẽ có email nhắc. Hết chu kỳ còn 24 giờ gia hạn. Sau đó quản trị viên xem xét việc xoá
-                khỏi nhóm.
+                Còn 3 ngày mà chưa đủ sẽ có email nhắc: giao dịch đủ phần còn thiếu, hoặc nạp 30$ để được giữ lại chu kỳ đó.
+                Hết chu kỳ còn 24 giờ gia hạn. Sau đó quản trị viên xem xét việc xoá khỏi nhóm. Người đã bị xoá nếu giao dịch đủ
+                68.686$ sẽ nhận email mời nhắn Zalo Thanh Kiệt để vào lại.
               </p>
             </li>
           </ol>

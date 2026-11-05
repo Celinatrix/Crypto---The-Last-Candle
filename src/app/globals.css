@@ -2722,6 +2722,19 @@ h2.tabs__tab {
   white-space: nowrap;
 }
 
+.admin__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin__rejoin {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .admin__badge.is-ok {
   background: var(--ok-soft);
   color: var(--ok);
@@ -2805,6 +2818,10 @@ h2.tabs__tab {
     flex: none;
     font-size: 12px;
     color: var(--muted);
+  }
+
+  .admin__status {
+    justify-content: flex-end;
   }
 }
 

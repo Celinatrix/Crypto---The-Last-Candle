@@ -128,11 +128,31 @@ export function unsubscribeHeaders(url: string): Record<string, string> {
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const plainText = (html: string) => html.replace(/<br>/g, "\n").replace(/<[^>]+>/g, "");
 const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const vnDay = (iso: string) => {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 };
+
+const ZALO_NUMBER = "0372 927 303";
+const ZALO_URL = "https://zalo.me/0372927303";
+const zaloLink = `<a href="${ZALO_URL}" style="color:#f97316">Zalo Thanh Kiệt (${ZALO_NUMBER})</a>`;
+
+/**
+ * The paid alternative in a volume reminder, only once a valid wallet is configured. The payment
+ * cannot be confirmed by the site: the member sends the transaction id to the admin, who then
+ * chooses Keep on the admin page.
+ */
+function paymentLines(): string[] {
+  const wallet = process.env.PAYMENT_WALLET_ADDRESS?.trim() ?? "";
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return [];
+  return [
+    `Nếu không kịp, bạn có thể nạp <strong>30$</strong> để được giữ lại chu kỳ này:<br>Ví: <strong style="word-break:break-all">${wallet}</strong><br>Mạng: <strong>USDT BEP20 (BNB Smart Chain)</strong>`,
+    `Sau khi chuyển, hãy gửi mã giao dịch qua ${zaloLink} để được xác nhận.`,
+    `Crypto chuyển đi không lấy lại được. Hãy đối chiếu địa chỉ ví với Thanh Kiệt qua Zalo trước khi chuyển.`,
+  ];
+}
 
 /** Shared dark layout: heading, body paragraphs (already-escaped HTML) and an optional button. */
 function layout(title: string, paragraphs: string[], button?: { href: string; label: string }): string {
@@ -214,8 +234,30 @@ export function cycleNoticeEmail(n: CycleNotice, today: string, siteUrl: string)
         `UID <strong>${n.bingx_uid}</strong> đang ở ${cycle}: <strong>${usd(counted)}</strong> / ${usd(target)} (tính đến hết hôm qua).`,
         `Bạn cần thêm <strong>${usd(remaining)}</strong>, khoảng <strong>${usd(remaining / Math.max(1, daysLeft))}</strong> mỗi ngày trong ${daysLeft} ngày còn lại.`,
       ];
-  const text = [title, "", ...lines.map((l) => l.replace(/<[^>]+>/g, "")), "", `Xem tiến độ: ${link}`].join("\n");
-  return { to: n.email, subject, html: layout(title, lines, { href: link, label: "Xem tiến độ" }), text };
+  const paragraphs = [...lines, ...paymentLines()];
+  const text = [title, "", ...paragraphs.map(plainText), "", `Xem tiến độ: ${link}`].join("\n");
+  return { to: n.email, subject, html: layout(title, paragraphs, { href: link, label: "Xem tiến độ" }), text };
+}
+
+export interface RejoinNotice {
+  member_id: number;
+  email: string;
+  bingx_uid: number;
+  kicked_on: string;
+  volume_since: number | string;
+  target: number | string;
+  notified: boolean;
+}
+
+/** Sent once per kick, when the volume traded since then has reached the target. */
+export function rejoinEmail(n: RejoinNotice): EmailMessage {
+  const subject = "✅ Bạn đã đủ volume để quay lại nhóm Premium";
+  const paragraphs = [
+    `UID <strong>${n.bingx_uid}</strong> đã giao dịch <strong>${usd(Number(n.volume_since))}</strong> kể từ khi rời nhóm Premium ngày ${vnDay(n.kicked_on)}, đạt mức yêu cầu ${usd(Number(n.target))}.`,
+    `Hãy nhắn ${zaloLink} để được vào lại nhóm Premium.`,
+  ];
+  const text = [subject, "", ...paragraphs.map(plainText), "", `Nhắn Zalo: ${ZALO_URL}`].join("\n");
+  return { to: n.email, subject, html: layout(subject, paragraphs, { href: ZALO_URL, label: "Nhắn Zalo Thanh Kiệt" }), text };
 }
 
 export interface PendingKick {

@@ -1,6 +1,7 @@
 /**
  * Emails sent after the morning sync (cron/sync-volume), once cycles are evaluated:
  *  - members: "3 days left" reminder and the 24h grace-day notice, once per cycle each;
+ *  - removed members: one invitation to come back, once their volume since the kick reaches the target;
  *  - admin:   digest of kick reviews and new links waiting for a decision (ADMIN_EMAIL, comma-separated).
  * Plus the instant admin email when a new link waits for approval (from /api/verify-otp).
  */
@@ -9,11 +10,13 @@ import {
   adminDigest,
   cycleNoticeEmail,
   pendingApprovalEmail,
+  rejoinEmail,
   sendBatch,
   sendEmail,
   type CycleNotice,
   type PendingApproval,
   type PendingKick,
+  type RejoinNotice,
 } from "./email";
 
 const utcToday = () => new Date().toISOString().slice(0, 10);
@@ -43,6 +46,32 @@ export async function sendCycleNotices(siteUrl: string): Promise<{ sent: number;
       failed += chunk.length - delivered.length;
     } catch (err) {
       console.error("[notify] cycle notices", err);
+      failed += chunk.length;
+    }
+  }
+  return { sent, failed };
+}
+
+export const isRejoinReady = (r: Pick<RejoinNotice, "volume_since" | "target">) => Number(r.volume_since) >= Number(r.target);
+
+export async function sendRejoinNotices(): Promise<{ sent: number; failed: number }> {
+  const ready = (await rpc<RejoinNotice[]>("kicked_progress", {})).filter((r) => !r.notified && isRejoinReady(r));
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < ready.length; i += 100) {
+    const chunk = ready.slice(i, i + 100);
+    try {
+      const ids = await sendBatch(chunk.map(rejoinEmail));
+      // Recorded per kick (send_day = kick day), so each kick gets one invitation. A message that
+      // failed is left unrecorded and is tried again on the next run.
+      const delivered = chunk.flatMap((n, k) =>
+        ids[k] === null ? [] : [{ member_id: n.member_id, kind: "rejoin_ready", send_day: n.kicked_on, provider_id: ids[k] || null }],
+      );
+      await upsert("email_deliveries", delivered, "member_id,kind,send_day");
+      sent += delivered.length;
+      failed += chunk.length - delivered.length;
+    } catch (err) {
+      console.error("[notify] rejoin notices", err);
       failed += chunk.length;
     }
   }

@@ -47,6 +47,8 @@ export interface AdminMember {
   volume: number;
   tradeDays: number;
   shortfall: number;
+  /** For someone out of the group: volume traded since the kick, towards coming back. */
+  rejoin: { volume: number; target: number; ready: boolean } | null;
 }
 
 export interface AdminOverview {

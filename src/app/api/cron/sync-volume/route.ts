@@ -5,12 +5,13 @@ import { insertOne, rpc, update, upsert } from "@/backend/db";
 import { sendWeeklyBackup } from "@/backend/backup";
 import { sendCycleReport } from "@/backend/cycleReport";
 import { syncDeposits } from "@/backend/deposits";
-import { sendAdminDigest, sendCycleNotices } from "@/backend/notify";
+import { sendAdminDigest, sendCycleNotices, sendRejoinNotices } from "@/backend/notify";
 
 /**
  * Daily BingX → Supabase sync (vercel.json: "0 2 * * *" = 02:00 UTC, after BingX publishes
  * the previous UTC day). Stores every invitee and their daily futures volume, then settles
- * Premium cycles, then emails members who are falling short and the admin (pending kicks; on the
+ * Premium cycles, then emails members who are falling short, removed members who have traded enough
+ * to come back, and the admin (pending kicks; on the
  * 1st and 15th also the Excel report of the cycle that just ended — `?report=1` sends it now).
  * The last 16 days are re-fetched each run so late corrections and a missed
  * run heal themselves. `?days=N` (1–365) backfills further, e.g. on the first run.
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
     // Emails never fail the sync: the data is already stored.
     const siteUrl = process.env.SITE_URL || req.nextUrl.origin;
     const notices = await sendCycleNotices(siteUrl).catch((err: Error) => ({ error: err.message }));
+    const rejoin = await sendRejoinNotices().catch((err: Error) => ({ error: err.message }));
     const pending = await sendAdminDigest().catch((err: Error) => ({ error: err.message }));
 
     // On the 1st and the 15th: report of the cycle that ended yesterday (?report=1 forces it).
@@ -104,7 +106,7 @@ export async function GET(req: NextRequest) {
     const deposits =
       Date.now() - to < 25_000 ? await syncDeposits().catch((err: Error) => ({ error: err.message })) : "skipped-out-of-time";
 
-    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pending, cycleReport, backup, deposits });
+    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, rejoin, pending, cycleReport, backup, deposits });
   } catch (err) {
     const message = (err as Error).message;
     await update("sync_runs", `id=eq.${runId}`, {
