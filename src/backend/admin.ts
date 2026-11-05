@@ -1,7 +1,8 @@
 /**
  * Admin sessions for /admin. The cookie is separate from a member's: Path=/api/admin so it is sent
- * only to the admin APIs, SameSite=Strict, 12 hours. The database stores only its SHA-256, and every
- * request checks the address is still in ADMIN_EMAIL, so removing an address locks it out at once.
+ * only to the admin APIs, SameSite=Strict. It lasts 12 hours, or 3 days when the admin ticks "remember
+ * this device". The database stores only its SHA-256, and every request checks the address is still
+ * in ADMIN_EMAIL, so removing an address locks it out at once.
  */
 import type { NextRequest } from "next/server";
 import { bytea, rpc } from "./db";
@@ -9,14 +10,16 @@ import { adminEmails } from "./notify";
 import { sha256 } from "./session";
 
 const ADMIN_COOKIE = "slc_admin";
-const ADMIN_SESSION_HOURS = 12;
+/** Matches admin_sessions.expires_at's default. */
+export const ADMIN_SESSION_HOURS = 12;
+export const ADMIN_REMEMBER_HOURS = 3 * 24;
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 
 const cookieAttrs = (https: boolean, maxAge: number) =>
   `Path=/api/admin; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${https || process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
 
-export const buildAdminCookie = (token: string, https: boolean) =>
-  `${ADMIN_COOKIE}=${token}; ${cookieAttrs(https, ADMIN_SESSION_HOURS * 3600)}`;
+export const buildAdminCookie = (token: string, https: boolean, hours: number) =>
+  `${ADMIN_COOKIE}=${token}; ${cookieAttrs(https, hours * 3600)}`;
 
 export const clearAdminCookie = (https: boolean) => `${ADMIN_COOKIE}=; ${cookieAttrs(https, 0)}`;
 

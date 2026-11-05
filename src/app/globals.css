@@ -3127,3 +3127,20 @@ h2.tabs__tab {
     font-size: 18px;
   }
 }
+
+.admin__remember {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.admin__remember input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: #fff;
+  cursor: pointer;
+}

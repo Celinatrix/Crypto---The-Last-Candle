@@ -32,6 +32,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [remember, setRemember] = useState(false);
   const [botToken, setBotToken] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,7 +70,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
     setError(null);
     setBusy(true);
     try {
-      const r = await post("/api/admin/auth/verify", { email: sentTo, code: value });
+      const r = await post("/api/admin/auth/verify", { email: sentTo, code: value, remember });
       if (r.ok) onSignedIn();
       else setError(r.error ?? "Đã có lỗi xảy ra.");
     } catch {
@@ -100,6 +101,20 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
             <p className="card__text">
               Nếu <strong>{sentTo}</strong> là địa chỉ quản trị, mã 6 chữ số đã được gửi tới đó. Mã có hiệu lực 10 phút.
             </p>
+            {/* Above the code field: typing the 6th digit signs in right away. */}
+            <div className="field">
+              <label className="admin__remember" htmlFor="admin-remember">
+                <input
+                  id="admin-remember"
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  disabled={busy}
+                />
+                Ghi nhớ thiết bị này 3 ngày
+              </label>
+              <p className="field__hint">Không tick thì phiên kéo dài 12 giờ. Đừng tick trên máy dùng chung.</p>
+            </div>
             <div className="field">
               <label className="label" htmlFor="admin-code">Mã xác thực</label>
               <input

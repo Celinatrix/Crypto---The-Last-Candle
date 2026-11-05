@@ -1,10 +1,11 @@
 /**
- * POST /api/admin/auth/verify — checks the emailed code and starts a 12 hour admin session.
- * Body: { email: string; code: string }
+ * POST /api/admin/auth/verify — checks the emailed code and starts an admin session: 12 hours, or
+ * 3 days on a device the admin chose to remember.
+ * Body: { email: string; code: string; remember?: boolean }
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { buildAdminCookie, isAdminEmail } from "@/backend/admin";
-import { bytea, rpc } from "@/backend/db";
+import { ADMIN_REMEMBER_HOURS, ADMIN_SESSION_HOURS, buildAdminCookie, isAdminEmail } from "@/backend/admin";
+import { bytea, eq, rpc, update } from "@/backend/db";
 import { sameOrigin } from "@/backend/guard";
 import { generateSessionToken, otpHash, sha256 } from "@/backend/session";
 
@@ -15,11 +16,12 @@ const fail = (error: string, status: number) => NextResponse.json({ ok: false, e
 export async function POST(req: NextRequest) {
   if (!sameOrigin(req)) return fail("Yêu cầu không hợp lệ.", 403);
 
-  let email: string, code: string;
+  let email: string, code: string, remember: boolean;
   try {
-    const body = (await req.json()) as { email?: unknown; code?: unknown };
+    const body = (await req.json()) as { email?: unknown; code?: unknown; remember?: unknown };
     email = String(body?.email ?? "").trim().toLowerCase();
     code = String(body?.code ?? "").trim();
+    remember = body?.remember === true;
   } catch {
     return fail("Dữ liệu không hợp lệ.", 400);
   }
@@ -30,15 +32,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const token = generateSessionToken();
+    const tokenHash = bytea(sha256(token));
     const result = await rpc<string>("admin_verify", {
       p_email: email,
       p_code_hash: bytea(otpHash("admin", email, code)),
-      p_token_hash: bytea(sha256(token)),
+      p_token_hash: tokenHash,
     });
     if (result === "ok") {
+      let hours = ADMIN_SESSION_HOURS;
+      if (remember) {
+        // The database sets 12 hours; if extending fails the admin is still signed in, for 12 hours.
+        const expiresAt = new Date(Date.now() + ADMIN_REMEMBER_HOURS * 3_600_000).toISOString();
+        await update("admin_sessions", `token_hash=${eq(tokenHash)}`, { expires_at: expiresAt })
+          .then(() => {
+            hours = ADMIN_REMEMBER_HOURS;
+          })
+          .catch((err: unknown) => console.error("[/api/admin/auth/verify] remember", err));
+      }
       return NextResponse.json(
         { ok: true },
-        { headers: { "Set-Cookie": buildAdminCookie(token, req.nextUrl.protocol === "https:") } },
+        { headers: { "Set-Cookie": buildAdminCookie(token, req.nextUrl.protocol === "https:", hours) } },
       );
     }
     if (result === "no_code") return fail(expired, 400);
