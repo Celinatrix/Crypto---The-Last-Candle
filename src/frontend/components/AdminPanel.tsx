@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Turnstile, { turnstileEnabled, type TurnstileHandle } from "@/frontend/components/Turnstile";
 import { fmtDateTime, fmtDayFull, fmtUSD } from "@/frontend/lib/format";
@@ -82,6 +83,9 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
       <div className="admin__login-card liquid-glass">
         <p className="admin__brand">The Last Candle</p>
         <h1 className="card__title">Trang quản trị</h1>
+        <Link className="admin__home" href="/">
+          ← Về trang chủ
+        </Link>
 
         {sentTo ? (
           <form
@@ -267,6 +271,9 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
           </p>
         </div>
         <div className="admin__top-actions">
+          <Link className="btn btn--ghost btn--sm" href="/">
+            Về trang chủ
+          </Link>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => void refresh()} disabled={refreshing}>
             {refreshing ? "Đang tải…" : "Tải lại"}
           </button>

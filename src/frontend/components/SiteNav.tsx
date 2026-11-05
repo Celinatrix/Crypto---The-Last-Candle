@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import LogoutButton from "./LogoutButton";
 import { useLinkedMember, useMember } from "./MemberProvider";
@@ -47,7 +48,7 @@ export default function SiteNav() {
         toggleRef.current?.focus();
       }
     };
-    const onResize = () => window.innerWidth >= 1280 && setOpen(false);
+    const onResize = () => window.innerWidth >= 1520 && setOpen(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
     return () => {
@@ -87,6 +88,10 @@ export default function SiteNav() {
             </button>
           )}
         </div>
+
+        <Link className="btn btn--ghost btn--sm nav__admin" href="/admin" prefetch={false}>
+          Quản Trị Server
+        </Link>
 
         <button
           ref={toggleRef}
@@ -145,6 +150,9 @@ export default function SiteNav() {
               Liên kết UID BingX
             </button>
           )}
+          <Link className="btn btn--ghost menu__admin" href="/admin" prefetch={false} onClick={close}>
+            Quản Trị Server
+          </Link>
         </div>
       </div>
     </>
