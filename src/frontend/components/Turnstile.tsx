@@ -83,7 +83,8 @@ const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ onToke
         widgetId.current = window.turnstile.render(el.current, {
           sitekey: SITE_KEY,
           theme: "dark",
-          size: "flexible",
+          // "flexible" needs at least 300px; narrower phones would clip the widget.
+          size: el.current.offsetWidth > 0 && el.current.offsetWidth < 300 ? "compact" : "flexible",
           language: "vi",
           callback: (token: string) => handlers.current.onToken(token),
           "expired-callback": () => handlers.current.onToken(null),
