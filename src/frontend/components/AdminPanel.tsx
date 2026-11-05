@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import AdminStats from "@/frontend/components/AdminStats";
 import Turnstile, { turnstileEnabled, type TurnstileHandle } from "@/frontend/components/Turnstile";
 import { fmtDateTime, fmtDayFull, fmtUSD } from "@/frontend/lib/format";
 import type { AdminMember, AdminOverview, MemberStatus } from "@/shared/types";
@@ -179,7 +180,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   );
 }
 
-type Tab = "pending" | "members" | "kicks" | "unlinked";
+type Tab = "stats" | "pending" | "members" | "kicks" | "unlinked";
 type Filter = "all" | "met" | "short";
 
 function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload: () => Promise<void>; onSignedOut: () => void }) {
@@ -188,7 +189,7 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
   const inGroup = useMemo(() => members.filter((m) => m.status === "active" || m.status === "warned"), [members]);
   const metCount = inGroup.filter((m) => m.shortfall === 0).length;
 
-  const [tab, setTab] = useState<Tab>(pending.length > 0 ? "pending" : kickReviews.length > 0 ? "kicks" : "members");
+  const [tab, setTab] = useState<Tab>(pending.length > 0 ? "pending" : kickReviews.length > 0 ? "kicks" : "stats");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -247,7 +248,8 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
     { label: "Chưa liên kết web", value: unlinked.length },
   ];
 
-  const tabs: { id: Tab; label: string; count: number }[] = [
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "stats", label: "Thống kê" },
     { id: "pending", label: "Chờ duyệt", count: pending.length },
     { id: "members", label: "Thành viên", count: members.length },
     { id: "kicks", label: "Chờ xét xoá", count: kickReviews.length },
@@ -308,10 +310,12 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
             className={`admin__tab${tab === t.id ? " is-active" : ""}`}
             onClick={() => setTab(t.id)}
           >
-            {t.label} <span className="admin__tab-count num">{t.count}</span>
+            {t.label} {t.count !== undefined && <span className="admin__tab-count num">{t.count}</span>}
           </button>
         ))}
       </div>
+
+      {tab === "stats" && <AdminStats overview={data} onSignedOut={onSignedOut} />}
 
       {tab === "pending" && (
         <section aria-label="Chờ duyệt">

@@ -4,6 +4,7 @@ import { cronAuthorized } from "@/backend/cronAuth";
 import { insertOne, rpc, update, upsert } from "@/backend/db";
 import { sendWeeklyBackup } from "@/backend/backup";
 import { sendCycleReport } from "@/backend/cycleReport";
+import { syncDeposits } from "@/backend/deposits";
 import { sendAdminDigest, sendCycleNotices } from "@/backend/notify";
 
 /**
@@ -98,7 +99,12 @@ export async function GET(req: NextRequest) {
         ? await sendWeeklyBackup(today).catch((err: Error) => ({ error: err.message }))
         : "not-today";
 
-    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pending, cycleReport, backup });
+    // Keeps the deposit history going when nobody opens the admin page. The job has 60 seconds in all;
+    // skipped here, it still runs when the page is opened.
+    const deposits =
+      Date.now() - to < 25_000 ? await syncDeposits().catch((err: Error) => ({ error: err.message })) : "skipped-out-of-time";
+
+    return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pending, cycleReport, backup, deposits });
   } catch (err) {
     const message = (err as Error).message;
     await update("sync_runs", `id=eq.${runId}`, {

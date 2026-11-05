@@ -68,6 +68,37 @@ export interface AdminOverview {
   unlinked: { uid: string; volume: number; tradeDays: number }[];
 }
 
+/** The admin page's charts: see /api/admin/stats for which days each list covers. */
+export interface AdminStats {
+  today: string;
+  lastVolumeDay: string;
+  depositDay: string;
+  volumeDay: string;
+  /** Last time deposits were read from BingX; null until the first time. */
+  syncedAt: string | null;
+  failedUids: number;
+  volumeDaily: { day: string; linked: number; other: number; traders: number }[];
+  depositDaily: {
+    day: string;
+    onchain: number;
+    p2p: number;
+    transfer: number;
+    events: number;
+    uids: number;
+    otherCurrency: number;
+  }[];
+  deposits: {
+    uid: string;
+    email: string | null;
+    time: string;
+    assetType: number;
+    typeName: string;
+    currency: string;
+    amount: number;
+  }[];
+  dayVolumes: { uid: string; email: string | null; volume: number }[];
+}
+
 /** A high-impact ("red folder") economic calendar event. */
 export interface CalendarEvent {
   id: string;

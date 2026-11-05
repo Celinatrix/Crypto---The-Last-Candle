@@ -159,5 +159,50 @@ export async function fetchDailyFuturesVolume(from: number, to: number): Promise
   return [...byKey.values()];
 }
 
+export interface InviteeDeposit {
+  bizTime: number;
+  assetType: number;
+  assetTypeName: string;
+  currency: string;
+  /** Decimal string as sent by BingX */
+  amount: string;
+}
+
+/**
+ * One invited UID's deposits (crypto deposits, P2P buys, internal transfers in). BingX keeps the last
+ * 90 days and has no equivalent for withdrawals: bizType 1 is the only value it accepts.
+ */
+export async function fetchInviteeDeposits(
+  uid: number,
+  startTime: number,
+  endTime: number,
+  /** Awaited before every request, so the caller can pace them. */
+  pace: () => Promise<void>,
+): Promise<InviteeDeposit[]> {
+  const pageSize = 100;
+  const out: InviteeDeposit[] = [];
+  for (let pageIndex = 1; ; pageIndex++) {
+    await pace();
+    const page = await signedGet<
+      | {
+          total?: number;
+          list?: { bizTime: number; assetType: number; assetTypeName: string; currencyName: string; currencyAmountVolume: string }[];
+        }
+      | undefined
+    >("/openApi/agent/v1/asset/depositDetailList", { uid, bizType: 1, startTime, endTime, pageIndex, pageSize });
+    const list = page?.list ?? [];
+    for (const r of list) {
+      out.push({
+        bizTime: r.bizTime,
+        assetType: r.assetType,
+        assetTypeName: r.assetTypeName,
+        currency: r.currencyName,
+        amount: r.currencyAmountVolume,
+      });
+    }
+    if (list.length < pageSize || out.length >= (page?.total ?? 0)) return out;
+  }
+}
+
 export const startOfUtcDay = (ms: number) => Math.floor(ms / DAY_MS) * DAY_MS;
 export { DAY_MS };
