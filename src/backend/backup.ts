@@ -16,7 +16,6 @@ const TABLES = ["members", "memberships", "premium_cycles", "kick_reviews", "ema
 
 export async function sendWeeklyBackup(
   todayIso: string,
-  opts: { force?: boolean } = {},
 ): Promise<{ tables: Record<string, number>; bytes: number; sentTo: number } | null> {
   const admins = adminEmails();
   if (admins.length === 0) return null;
@@ -30,24 +29,21 @@ export async function sendWeeklyBackup(
   const summary = TABLES.map((t) => `${t}: ${tables[t]}`).join(" · ");
   const filename = `the-last-candle-backup-${todayIso}.json.gz`;
   for (const to of admins) {
-    await sendEmail(
-      {
-        to,
-        subject: `🗄️ Backup dữ liệu The Last Candle ${todayIso}`,
-        text: [
-          `Bản sao lưu hằng tuần (file đính kèm ${filename}).`,
-          summary,
-          "",
-          "Volume không có trong file vì tải lại được từ BingX.",
-          "File chứa Gmail của thành viên — không chuyển tiếp cho người khác. Giữ ít nhất 4 bản gần nhất.",
-        ].join("\n"),
-        html: `<p style="font-family:sans-serif">Bản sao lưu hằng tuần (file đính kèm <strong>${filename}</strong>).</p>
+    await sendEmail({
+      to,
+      subject: `🗄️ Backup dữ liệu The Last Candle ${todayIso}`,
+      text: [
+        `Bản sao lưu hằng tuần (file đính kèm ${filename}).`,
+        summary,
+        "",
+        "Volume không có trong file vì tải lại được từ BingX.",
+        "File chứa Gmail của thành viên — không chuyển tiếp cho người khác. Giữ ít nhất 4 bản gần nhất.",
+      ].join("\n"),
+      html: `<p style="font-family:sans-serif">Bản sao lưu hằng tuần (file đính kèm <strong>${filename}</strong>).</p>
 <p style="font-family:sans-serif;color:#555">${summary}</p>
 <p style="font-family:sans-serif;color:#555">Volume không có trong file vì tải lại được từ BingX. File chứa Gmail của thành viên — không chuyển tiếp cho người khác. Giữ ít nhất 4 bản gần nhất.</p>`,
-        attachments: [{ filename, content: gz }],
-      },
-      opts.force ? undefined : `backup-${todayIso}-${to}`,
-    );
+      attachments: [{ filename, content: gz }],
+    });
   }
   return { tables, bytes: gz.length, sentTo: admins.length };
 }

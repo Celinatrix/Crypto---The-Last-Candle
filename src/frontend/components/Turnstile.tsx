@@ -50,16 +50,18 @@ interface Props {
   onToken: (token: string | null) => void;
   /** Called once if the widget could not load at all (blocked script, offline). */
   onLoadError?: () => void;
+  /** The check failed; `code` is Cloudflare's error code. */
+  onError?: (code: string) => void;
 }
 
-const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ onToken, onLoadError }, ref) {
+const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ onToken, onLoadError, onError }, ref) {
   const el = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
-  const handlers = useRef({ onToken, onLoadError });
+  const handlers = useRef({ onToken, onLoadError, onError });
 
   useEffect(() => {
-    handlers.current = { onToken, onLoadError };
-  }, [onToken, onLoadError]);
+    handlers.current = { onToken, onLoadError, onError };
+  }, [onToken, onLoadError, onError]);
 
   useImperativeHandle(
     ref,
@@ -85,7 +87,11 @@ const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ onToke
           language: "vi",
           callback: (token: string) => handlers.current.onToken(token),
           "expired-callback": () => handlers.current.onToken(null),
-          "error-callback": () => handlers.current.onToken(null),
+          "error-callback": (code: unknown) => {
+            handlers.current.onToken(null);
+            handlers.current.onError?.(String(code ?? ""));
+            return true; // handled: the form shows the message and a retry button
+          },
         });
       })
       .catch(() => {

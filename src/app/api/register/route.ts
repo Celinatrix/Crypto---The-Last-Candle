@@ -87,7 +87,12 @@ export async function POST(req: NextRequest) {
     if (rejected) return fail(...rejected);
     if (result !== "ok") throw new Error(`auth_start: ${result}`);
 
-    await sendEmail({ to: email, ...otpEmailBody(code) });
+    try {
+      await sendEmail({ to: email, ...otpEmailBody(code) });
+    } catch (err) {
+      console.error("[/api/register] sending the code", err);
+      return fail("Không gửi được mã tới Gmail này. Hãy kiểm tra lại địa chỉ hoặc thử lại sau ít phút.", 502);
+    }
     return NextResponse.json<RegisterResult>({ ok: true });
   } catch (err) {
     console.error("[/api/register]", err);

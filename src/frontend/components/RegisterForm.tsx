@@ -54,8 +54,13 @@ export default function RegisterForm({
     return () => window.clearTimeout(id);
   }, [cooldown]);
 
-  const onBotToken = useCallback((t: string | null) => setBotToken(t), []);
+  const [botErrorCode, setBotErrorCode] = useState<string | null>(null);
+  const onBotToken = useCallback((t: string | null) => {
+    setBotToken(t);
+    if (t) setBotErrorCode(null);
+  }, []);
   const onBotLoadError = useCallback(() => setBotLoadFailed(true), []);
+  const onBotError = useCallback((errorCode: string) => setBotErrorCode(errorCode), []);
 
   /** Ask for a code; the Turnstile token is used up either way, so get a fresh one. */
   async function requestCode(cleanEmail: string) {
@@ -136,6 +141,23 @@ export default function RegisterForm({
     <p className="field__hint is-error">
       Không tải được bước xác minh chống bot. Hãy tắt trình chặn quảng cáo cho trang này hoặc tải lại trang.
     </p>
+  ) : botErrorCode !== null ? (
+    <div className="field__hint is-error" role="alert">
+      <p>
+        Chưa xác minh được{botErrorCode ? ` (mã ${botErrorCode})` : ""}. Hãy bấm Thử lại. Nếu vẫn lỗi, hãy tắt VPN và tiện
+        ích chặn quảng cáo, hoặc đổi trình duyệt hay mạng khác.
+      </p>
+      <button
+        type="button"
+        className="btn btn--ghost"
+        onClick={() => {
+          setBotErrorCode(null);
+          turnstileRef.current?.reset();
+        }}
+      >
+        Thử lại
+      </button>
+    </div>
   ) : null;
 
   if (sentTo) {
@@ -183,7 +205,7 @@ export default function RegisterForm({
         {/* Needed only for "Gửi lại mã"; shown once the cooldown is over. */}
         {cooldown === 0 && (
           <>
-            <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} />
+            <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} onError={onBotError} />
             {botNote}
           </>
         )}
@@ -293,7 +315,7 @@ export default function RegisterForm({
           : "Bắt buộc nhập cả UID BingX và Gmail."}
       </p>
 
-      <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} />
+      <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} onError={onBotError} />
       {botNote}
 
       <div className="form__actions">

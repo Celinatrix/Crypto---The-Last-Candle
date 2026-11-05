@@ -11,7 +11,8 @@ import { vnDayAt, vnDayKey } from "@/shared/vnTime";
  *
  * Triggered by Vercel Cron (vercel.json: "0 0 * * *" = 00:00 UTC = 07:00 GMT+7), which
  * sends `Authorization: Bearer $CRON_SECRET`. Recipients come from public.email_recipients;
- * emails go out through Resend, one message per member with its own unsubscribe link.
+ * emails go out through Gmail, one message per member with its own unsubscribe link.
+ * Running this by hand again on the same day sends the email again.
  *
  * Manual checks (same Authorization header):
  *   ?preview=1        → returns the email HTML, sends nothing
@@ -21,7 +22,7 @@ import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BATCH_SIZE = 100; // Resend batch limit
+const BATCH_SIZE = 100;
 const GMAIL_RE = /^[a-z0-9.+_-]+@(gmail|googlemail)\.com$/i;
 
 /** Active + warned members who have not unsubscribed (public.email_recipients). */
@@ -36,8 +37,7 @@ async function sendDaily(
   recipients: string[],
   email: ReturnType<typeof renderDailyEmail>,
   siteUrl: string,
-  idempotencyKey: string,
-): Promise<void> {
+): Promise<number> {
   const messages = recipients.map((to) => {
     const url = unsubscribeUrl(siteUrl, to);
     return {
@@ -49,8 +49,7 @@ async function sendDaily(
       headers: unsubscribeHeaders(url),
     };
   });
-  // The idempotency key makes a retried cron run for the same day/batch a no-op.
-  await sendBatch(messages, idempotencyKey);
+  return (await sendBatch(messages)).filter((id) => id !== null).length;
 }
 
 export async function GET(req: NextRequest) {
@@ -104,13 +103,10 @@ export async function GET(req: NextRequest) {
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
       const chunk = recipients.slice(i, i + BATCH_SIZE);
       try {
-        await sendDaily(chunk, email, siteUrl, `daily-calendar-${day}-${test ? "test" : "all"}-${i / BATCH_SIZE}`);
-        sent += chunk.length;
+        sent += await sendDaily(chunk, email, siteUrl);
       } catch (err) {
         failures.push((err as Error).message);
       }
-      // Stay under Resend's default rate limit (2 requests/second).
-      if (i + BATCH_SIZE < recipients.length) await new Promise((r) => setTimeout(r, 600));
     }
 
     return NextResponse.json(

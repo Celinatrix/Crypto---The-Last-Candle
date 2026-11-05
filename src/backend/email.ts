@@ -1,11 +1,10 @@
 /**
- * Transactional email through Resend: OTP codes, cycle warnings, the admin kick digest,
- * and the signed one-click unsubscribe link used by the 07:00 email.
+ * Transactional email through a Gmail account (SMTP + App Password): OTP codes, cycle warnings,
+ * the admin kick digest, and the signed one-click unsubscribe link used by the 07:00 email.
+ * Gmail allows about 500 recipients a day, and sends from the account's own address.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-
-const RESEND_URL = "https://api.resend.com/emails";
-const RESEND_BATCH_URL = "https://api.resend.com/emails/batch";
+import nodemailer from "nodemailer";
 
 export interface EmailMessage {
   to: string;
@@ -17,62 +16,79 @@ export interface EmailMessage {
   attachments?: { filename: string; content: Buffer }[];
 }
 
-function resendConfig() {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) throw new Error("RESEND_API_KEY / EMAIL_FROM chưa được cấu hình");
-  return { apiKey, from, replyTo: process.env.EMAIL_REPLY_TO || undefined };
+function gmailConfig() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD chưa được cấu hình");
+  return { user, pass, replyTo: process.env.EMAIL_REPLY_TO || undefined };
 }
 
-const payloadOf = (m: EmailMessage, from: string, replyTo?: string) => ({
-  from,
-  to: [m.to],
-  subject: m.subject,
-  html: m.html,
-  text: m.text,
-  ...(replyTo ? { reply_to: replyTo } : {}),
-  ...(m.headers ? { headers: m.headers } : {}),
-  ...(m.attachments
-    ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") })) }
-    : {}),
-});
-
-async function post(url: string, body: unknown, apiKey: string, idempotencyKey?: string): Promise<unknown> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+function openTransport(pool: boolean) {
+  const { user, pass } = gmailConfig();
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass: pass.replace(/\s/g, "") }, // Google shows the password in groups of 4
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+    // Every message is built here, so it never needs to read local files or fetch URLs.
+    disableFileAccess: true,
+    disableUrlAccess: true,
+    ...(pool ? { pool: true, maxConnections: 2 } : {}),
   });
-  const json: unknown = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const detail =
-      typeof json === "object" && json !== null && "message" in json ? String((json as { message: unknown }).message) : "";
-    throw new Error(`Resend HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+}
+
+const mailOf = (m: EmailMessage) => {
+  const { user, replyTo } = gmailConfig();
+  return {
+    from: { name: "The Last Candle", address: user },
+    to: m.to,
+    subject: m.subject,
+    html: m.html,
+    text: m.text,
+    ...(replyTo ? { replyTo } : {}),
+    ...(m.headers ? { headers: m.headers } : {}),
+    ...(m.attachments ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content })) } : {}),
+  };
+};
+
+/** Send one email. Returns the message id. */
+export async function sendEmail(m: EmailMessage): Promise<string> {
+  const transport = openTransport(false);
+  try {
+    return (await transport.sendMail(mailOf(m))).messageId ?? "";
+  } finally {
+    transport.close();
   }
-  return json;
 }
 
-/** Send one email. Returns Resend's message id. The idempotency key makes a retry a no-op (24h). */
-export async function sendEmail(m: EmailMessage, idempotencyKey?: string): Promise<string> {
-  const { apiKey, from, replyTo } = resendConfig();
-  const json = (await post(RESEND_URL, payloadOf(m, from, replyTo), apiKey, idempotencyKey)) as { id?: string };
-  return json.id ?? "";
-}
-
-/** Send up to 100 emails in one request. Returns the message ids in order. */
-export async function sendBatch(messages: EmailMessage[], idempotencyKey?: string): Promise<string[]> {
+/**
+ * Send up to 100 emails over one connection. Returns the message ids in order, with null for a
+ * message that failed. Throws only if every message failed.
+ */
+export async function sendBatch(messages: EmailMessage[]): Promise<(string | null)[]> {
   if (messages.length === 0) return [];
   if (messages.length > 100) throw new Error("sendBatch: tối đa 100 email mỗi lần");
-  const { apiKey, from, replyTo } = resendConfig();
-  const json = (await post(RESEND_BATCH_URL, messages.map((m) => payloadOf(m, from, replyTo)), apiKey, idempotencyKey)) as {
-    data?: { id?: string }[];
-  };
-  return (json.data ?? []).map((d) => d.id ?? "");
+  const transport = openTransport(true);
+  try {
+    const ids: (string | null)[] = [];
+    let lastError: unknown;
+    for (const m of messages) {
+      try {
+        ids.push((await transport.sendMail(mailOf(m))).messageId ?? "");
+      } catch (err) {
+        console.error("[email] send failed", err);
+        lastError = err;
+        ids.push(null);
+      }
+    }
+    if (ids.every((id) => id === null)) throw lastError;
+    return ids;
+  } finally {
+    transport.close();
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

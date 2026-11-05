@@ -279,7 +279,6 @@ export function cycleReportEmail(to: string, r: CycleReport, excel: Buffer, toda
 /** Builds and emails the report of the last finished cycle to ADMIN_EMAIL. */
 export async function sendCycleReport(
   todayIso: string,
-  opts: { force?: boolean } = {},
 ): Promise<{ cycle: string; unlinkedTraders: number; members: number; met: number; notMet: number; sentTo: number } | null> {
   const admins = (process.env.ADMIN_EMAIL ?? "")
     .split(",")
@@ -291,9 +290,8 @@ export async function sendCycleReport(
   const report = await buildCycleReport(start, end);
   const excel = await cycleReportExcel(report);
   for (const to of admins) {
-    // A rerun of the same morning sync does not send the report twice (forced test sends do).
-    const key = opts.force ? undefined : `cycle-report-${end}-${to}`;
-    await sendEmail(cycleReportEmail(to, report, excel, todayIso), key);
+    // Running the morning sync again by hand on a report day sends the report again.
+    await sendEmail(cycleReportEmail(to, report, excel, todayIso));
   }
   return {
     cycle: `${start}..${end}`,

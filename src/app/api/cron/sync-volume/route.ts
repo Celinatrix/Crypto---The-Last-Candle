@@ -88,14 +88,14 @@ export async function GET(req: NextRequest) {
     const forceReport = params.get("report") === "1";
     const cycleReport =
       forceReport || ["01", "15"].includes(today.slice(8))
-        ? await sendCycleReport(today, { force: forceReport }).catch((err: Error) => ({ error: err.message }))
+        ? await sendCycleReport(today).catch((err: Error) => ({ error: err.message }))
         : "not-today";
 
     // Every Monday (UTC): emailed backup of the tables BingX cannot rebuild (?backup=1 forces it).
     const forceBackup = params.get("backup") === "1";
     const backup =
       forceBackup || new Date().getUTCDay() === 1
-        ? await sendWeeklyBackup(today, { force: forceBackup }).catch((err: Error) => ({ error: err.message }))
+        ? await sendWeeklyBackup(today).catch((err: Error) => ({ error: err.message }))
         : "not-today";
 
     return NextResponse.json({ window: [day(from), day(to)], ...summary, notices, pending, cycleReport, backup });

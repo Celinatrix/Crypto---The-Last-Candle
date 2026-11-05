@@ -2,7 +2,7 @@
 
 Next.js 15 (App Router) · React 19 · TypeScript (strict) · plain CSS, "Serene" visual language
 (video hero, liquid-glass cards, parallax quote section) · Supabase (PostgreSQL) · BingX Agent API ·
-Resend (email) · Cloudflare Turnstile (bot check). Deployed on Vercel (region `bom1`, next to Supabase).
+Gmail SMTP (email) · Cloudflare Turnstile (bot check). Deployed on Vercel (region `bom1`, next to Supabase).
 
 ## Flow
 
@@ -103,7 +103,7 @@ src/
     bingx.ts        BingX Agent API (invitees, daily volume, live UID check)
     session.ts      OTP / session tokens and cookies
     guard.ts        same-origin check, Turnstile verification
-    email.ts        Resend, templates, unsubscribe links
+    email.ts        Gmail SMTP, templates, unsubscribe links
     notify.ts       member warnings + admin kick digest
     cronAuth.ts · ffCalendar.ts · dailyEmail.ts
 
