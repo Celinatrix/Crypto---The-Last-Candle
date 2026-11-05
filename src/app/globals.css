@@ -587,6 +587,7 @@ input {
   overflow: hidden;
   /* The planet's rim, drawn so that phones and slow connections never need the video. */
   background:
+    linear-gradient(180deg, transparent 72%, var(--night) 100%),
     radial-gradient(120% 62% at 50% 112%, #1f6fd6 0, #114a9c 38%, rgba(9, 37, 84, 0.65) 60%, transparent 74%),
     radial-gradient(80% 45% at 50% 62%, rgba(90, 150, 255, 0.14), transparent 70%),
     #02050c;
@@ -702,12 +703,43 @@ input {
   line-height: 1.35;
 }
 
+/* Long sections below the first screen are only laid out when they come near it: on a slow phone this
+   is more than a second of first-paint work. The sizes are close estimates, so anchors land correctly
+   and the scrollbar does not jump; the browser remembers the real size once a section has been seen. */
+.members,
+.premium,
+.quote,
+.contact {
+  content-visibility: auto;
+}
+
+.members { contain-intrinsic-size: auto 1110px; }
+.premium { contain-intrinsic-size: auto 540px; }
+.quote { contain-intrinsic-size: auto 560px; }
+.contact { contain-intrinsic-size: auto 335px; }
+
+@media (max-width: 1023px) {
+  .members { contain-intrinsic-size: auto 1700px; }
+  .premium { contain-intrinsic-size: auto 1040px; }
+  .contact { contain-intrinsic-size: auto 600px; }
+}
+
+@media (max-width: 599px) {
+  .members { contain-intrinsic-size: auto 2000px; }
+  .premium { contain-intrinsic-size: auto 1137px; }
+  .quote { contain-intrinsic-size: auto 540px; }
+}
+
 /* ---------- Members area ---------- */
 
 .members {
   position: relative;
   padding: 120px 48px 112px;
   background: linear-gradient(180deg, var(--bg) 0%, #070a12 55%, var(--night) 100%);
+}
+
+.premium + .members {
+  background: linear-gradient(180deg, var(--night) 0%, #070a12 45%, var(--night) 100%);
 }
 
 .members::before {
@@ -1782,7 +1814,7 @@ h2.tabs__tab {
   inset: 0;
   pointer-events: none;
   background: radial-gradient(760px 420px at 15% 50%, rgba(169, 220, 236, 0.08), transparent 70%),
-    radial-gradient(640px 380px at 90% 90%, rgba(32, 101, 142, 0.22), transparent 70%);
+    radial-gradient(640px 300px at 90% 58%, rgba(32, 101, 142, 0.22), transparent 70%);
 }
 
 .premium__intro {
@@ -1855,6 +1887,11 @@ h2.tabs__tab {
   border-radius: 50%;
   display: grid;
   place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.step__check.is-done {
+  border-color: transparent;
   color: #04140e;
   background: var(--ok);
   box-shadow: 0 0 16px rgba(142, 230, 192, 0.35);

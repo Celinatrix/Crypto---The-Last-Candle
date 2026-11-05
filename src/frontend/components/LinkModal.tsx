@@ -9,11 +9,9 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabi
 export default function LinkModal() {
   const { linkOpen, closeLink, markLinked } = useMember();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!linkOpen) return;
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -40,7 +38,6 @@ export default function LinkModal() {
     return () => {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", onKey);
-      returnFocusRef.current?.focus({ preventScroll: true });
     };
   }, [linkOpen, closeLink]);
 

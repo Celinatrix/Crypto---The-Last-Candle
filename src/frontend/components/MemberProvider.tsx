@@ -27,15 +27,13 @@ interface MemberContextValue {
 
 const MemberContext = createContext<MemberContextValue | null>(null);
 
-/** Delay before the link popup appears, so the hero is seen first. */
-const AUTO_OPEN_DELAY_MS = 700;
 const NOT_LINKED: MeState = { kind: "ready", data: { member: null } };
 
 export function MemberProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<MeState>({ kind: "loading" });
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
-  const autoShown = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const link = readLink();
@@ -81,14 +79,16 @@ export function MemberProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(id);
   }, [expiresAt]);
 
-  // Ask for UID + Gmail once per page load while this device is not linked.
-  // Closing it only dismisses it until the next visit.
-  useEffect(() => {
-    if (autoShown.current || state.kind !== "ready" || state.data.member) return;
-    autoShown.current = true;
-    const id = window.setTimeout(() => setLinkOpen(true), AUTO_OPEN_DELAY_MS);
-    return () => window.clearTimeout(id);
-  }, [state]);
+  const openLink = useCallback(() => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setLinkOpen(true);
+  }, []);
+
+  const closeLink = useCallback(() => {
+    setLinkOpen(false);
+    opener.current?.focus({ preventScroll: true });
+    opener.current = null;
+  }, []);
 
   const reload = useCallback(() => {
     setState({ kind: "loading" });
@@ -116,10 +116,10 @@ export function MemberProvider({ children }: { children: ReactNode }) {
       markLinked,
       signOut,
       linkOpen,
-      openLink: () => setLinkOpen(true),
-      closeLink: () => setLinkOpen(false),
+      openLink,
+      closeLink,
     }),
-    [state, expiresAt, reload, markLinked, signOut, linkOpen],
+    [state, expiresAt, reload, markLinked, signOut, linkOpen, openLink, closeLink],
   );
 
   return <MemberContext.Provider value={value}>{children}</MemberContext.Provider>;

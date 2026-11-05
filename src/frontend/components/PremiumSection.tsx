@@ -17,6 +17,8 @@ export default function PremiumSection() {
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   const uid = member ? String(member.uid) : "……";
+  // A linked UID has passed the partner-link check; approval means the admin accepted the rest.
+  const approved = member?.status === "active" || member?.status === "warned";
   const template = `Chào AD, mình muốn tham gia nhóm Premium - Signal.\nUID BingX: ${uid}\nTên Telegram: @……`;
 
   async function copyTemplate() {
@@ -43,7 +45,7 @@ export default function PremiumSection() {
 
       <ol className="premium__steps">
         <li className="step liquid-glass">
-          <StepHead n={1} title="Đăng ký tài khoản BingX" />
+          <StepHead n={1} title="Đăng ký tài khoản BingX" done={member !== null} />
           <p className="step__text">Đăng ký tài khoản BingX theo link đối tác của cộng đồng.</p>
           <code className="step__link">bingx.com/partner/AKITE3004</code>
           <div className="step__actions">
@@ -54,7 +56,7 @@ export default function PremiumSection() {
         </li>
 
         <li className="step liquid-glass">
-          <StepHead n={2} title="Nạp tiền trade" />
+          <StepHead n={2} title="Nạp tiền trade" done={approved} />
           <p className="step__text">
             Nạp tối thiểu <strong className="num">{MIN_DEPOSIT_USD}$</strong> vào tài khoản để giao dịch.
           </p>
@@ -65,7 +67,7 @@ export default function PremiumSection() {
         </li>
 
         <li className="step liquid-glass">
-          <StepHead n={3} title="Nhắn tin cho AD" />
+          <StepHead n={3} title="Nhắn tin cho AD" done={approved} />
           <p className="step__text">
             Gửi <strong>UID BingX</strong> và <strong>tên Telegram</strong> <span aria-hidden="true">✈️</span> cho AD để
             được duyệt vào nhóm <span aria-hidden="true">✅</span>
@@ -90,15 +92,20 @@ export default function PremiumSection() {
   );
 }
 
-function StepHead({ n, title }: { n: number; title: string }) {
+function StepHead({ n, title, done }: { n: number; title: string; done: boolean }) {
   return (
     <div className="step__head">
-      <span className="step__check" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-          <path d="m5 12 5 5 9-10" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <span className={`step__check${done ? " is-done" : ""}`} aria-hidden="true">
+        {done && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="m5 12 5 5 9-10" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
       </span>
-      <span className="step__num">Bước {n}</span>
+      <span className="step__num">
+        Bước {n}
+        {done && <span className="sr-only"> (đã xong)</span>}
+      </span>
       <h3 className="step__title">{title}</h3>
     </div>
   );

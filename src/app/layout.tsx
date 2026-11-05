@@ -26,10 +26,26 @@ const dancing = Dancing_Script({
   display: "swap",
 });
 
+const TITLE = "The Last Candle · Khu vực thành viên";
+const DESCRIPTION = "Theo dõi khối lượng giao dịch 30 ngày và tin tức cộng đồng The Last Candle.";
+
+/** Absolute links for the share preview. A malformed SITE_URL must not break the build. */
+function siteBase(): URL {
+  try {
+    return new URL(process.env.SITE_URL || "https://crypto-the-last-candle.vercel.app");
+  } catch {
+    return new URL("https://crypto-the-last-candle.vercel.app");
+  }
+}
+
 export const metadata: Metadata = {
-  title: "The Last Candle · Khu vực thành viên",
-  description: "Theo dõi khối lượng giao dịch 30 ngày và tin tức cộng đồng The Last Candle.",
+  metadataBase: siteBase(),
+  title: TITLE,
+  description: DESCRIPTION,
   robots: { index: false, follow: false },
+  // The preview image comes from opengraph-image.png in this folder.
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "/", siteName: "The Last Candle", locale: "vi_VN", type: "website" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {
