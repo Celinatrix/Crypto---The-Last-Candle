@@ -64,7 +64,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         deadline: p.resumesAt,
         alert: `Đã đạt ${REQ} cho chu kỳ #${p.index}${p.metDay ? ` vào ngày ${fmtDayFull(p.metDay)}` : ""}. Bạn đang nghỉ — volume sẽ được tính lại từ ${resume}.`,
         noteTitle: `Đang nghỉ đến hết ngày ${restUntil}.`,
-        noteBody: `Volume giao dịch trong thời gian nghỉ không được tính. Chu kỳ #${p.index + 1} bắt đầu ngày ${resume}, khi đó bạn lại cần đạt ${REQ} trước cuối chu kỳ.`,
+        noteBody: `Volume giao dịch trong thời gian nghỉ vẫn hiện trong tổng của chu kỳ này nhưng không được chuyển sang chu kỳ sau. Chu kỳ #${p.index + 1} bắt đầu ngày ${resume}, khi đó bạn lại cần đạt ${REQ} trước cuối chu kỳ.`,
         progress: p,
       };
     }

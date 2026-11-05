@@ -12,7 +12,7 @@ interface Props {
   daily: DailyVolume[];
   /** Counted days of the cycle under review ("YYYY-MM-DD", inclusive). */
   band?: { from: string; to: string; label: string };
-  /** Rest days after the target was reached: (after, to]. Shown but not counted. */
+  /** Rest days after the target was reached: (after, to]. Not needed for the target. */
   rest?: { after: string; to: string };
 }
 
@@ -67,7 +67,7 @@ export default function VolumeChart({ daily, band, rest }: Props) {
           {restN > 0 && (
             <>
               <span className="chart__swatch chart__swatch--rest" aria-hidden="true" />
-              Ngày nghỉ (không tính)
+              Sau khi đạt mục tiêu
             </>
           )}
           {zeroDays > 0 && (
@@ -127,7 +127,7 @@ export default function VolumeChart({ daily, band, rest }: Props) {
             <span className={`chart__tip-val num${activeDay.volume <= 0 && inBandDay(activeDay.day) ? " is-zero" : ""}`}>
               {fmtUSDT(activeDay.volume)}
             </span>
-            {isRestDay(activeDay.day) && <span className="chart__tip-day">Ngày nghỉ · không tính</span>}
+            {isRestDay(activeDay.day) && <span className="chart__tip-day">Sau khi đạt mục tiêu</span>}
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ import type { VolumeSummary } from "@/shared/types";
  * - Each cycle needs 68,686$ of crypto-futures volume.
  * - With `warnDaysLeft` days or fewer left and still below target, the member is warned.
  * - Reaching the target ends the cycle early: the rest of it is rest time and its volume
- *   is ignored. The next cycle starts on its calendar date.
+ *   does not carry over. The next cycle starts on its calendar date.
  * - A cycle that ends below target gets a 24h grace day (the first day of the next cycle).
  *   Missing it means removal (enforced by the backend via `member.status = "kicked"`).
  *
@@ -43,7 +43,7 @@ export interface CycleProgress {
   dayOfCycle: number;
   /** Whole days left until `deadline`, at least 1 while the cycle runs */
   daysLeft: number;
-  /** Counted volume: up to today, or up to the day the target was reached */
+  /** Volume of this cycle up to today, including days traded after the target was reached */
   volume: number;
   required: number;
   /** Floored; can exceed 100 */
@@ -144,8 +144,13 @@ export function getCycleProgress(
       // Reached by the last day: rest until the cycle ends. Reached on the grace day: that day
       // already belongs to the next cycle, so move straight on.
       if (metDay <= end && today <= end) {
+        // Show everything traded this cycle; metDay above still decides the result.
+        let total = cum;
+        for (let d = metDay + 1; d <= today; d++) total += vol(d);
         return {
           ...base,
+          volume: total,
+          percent: Math.floor((total / requiredUsd) * 100),
           dayOfCycle: metDay - start + 1,
           daysLeft: 0,
           perDay: 0,
