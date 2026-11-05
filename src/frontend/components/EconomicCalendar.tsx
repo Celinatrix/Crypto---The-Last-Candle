@@ -140,7 +140,7 @@ export default function EconomicCalendar() {
           const heading = dayHeading(Date.parse(first.time), now);
           return (
             <section key={heading} className="cal__day" aria-label={heading}>
-              <h4 className="cal__date">{heading}</h4>
+              <h3 className="cal__date">{heading}</h3>
               <ul className="cal__list">
                 {events.map((e) => (
                   <EventRow key={e.id} event={e} now={now} />
@@ -176,7 +176,7 @@ function EventRow({ event, now }: { event: CalendarEvent; now: number }) {
       </div>
       <div className="ev__body">
         <p className="ev__title">
-          <span className="ev__folder" aria-label="Tác động cao" />
+          <span className="ev__folder" role="img" aria-label="Tác động cao" />
           {event.title}
         </p>
         {(event.forecast || event.previous) && (

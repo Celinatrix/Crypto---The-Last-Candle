@@ -13,8 +13,9 @@ export default function Home() {
     <MemberProvider>
       <div className="app">
         <SiteNav />
-        <Hero />
         <LinkModal />
+        <main>
+        <Hero />
 
         <section className="members" id="member" aria-labelledby="members-title">
           <header className="members__intro">
@@ -61,15 +62,16 @@ export default function Home() {
               </ol>
             </div>
 
-            <aside className="sidebar" id="news">
+            <div className="sidebar" id="news">
               <NewsPanel />
-            </aside>
+            </div>
           </div>
         </section>
 
         <PremiumSection />
         <QuoteSection />
         <ContactSection />
+        </main>
 
         <footer className="site-footer">
           <span className="site-footer__brand">The Last Candle</span>

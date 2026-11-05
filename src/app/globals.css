@@ -585,7 +585,11 @@ input {
   height: 100svh;
   min-height: 560px;
   overflow: hidden;
-  background: var(--bg);
+  /* The planet's rim, drawn so that phones and slow connections never need the video. */
+  background:
+    radial-gradient(120% 62% at 50% 112%, #1f6fd6 0, #114a9c 38%, rgba(9, 37, 84, 0.65) 60%, transparent 74%),
+    radial-gradient(80% 45% at 50% 62%, rgba(90, 150, 255, 0.14), transparent 70%),
+    #02050c;
 }
 
 .hero__video {
@@ -594,6 +598,12 @@ input {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+}
+
+.hero__video.is-playing {
+  opacity: 1;
 }
 
 .hero__overlay {
@@ -1936,46 +1946,9 @@ h2.tabs__tab {
   justify-content: center;
   padding: 140px 24px 120px;
   overflow: hidden;
-  background: linear-gradient(180deg, #010a17 0%, #0a4267 30%, #20658e 60%, #6badc4 100%);
-}
-
-.quote__rainbow {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  z-index: 30;
-  width: 100%;
-  max-width: none;
-  pointer-events: none;
-  will-change: transform;
-  transform: translate3d(0, 120px, 0);
-}
-
-.quote__cloud {
-  position: absolute;
-  z-index: 10;
-  display: none;
-  width: 500px;
-  max-width: none;
-  pointer-events: none;
-  will-change: transform, opacity;
-  opacity: 0;
-}
-
-/* Negative margins are relative to the cloud's own width so part of it bleeds off-screen. */
-.quote__cloud--left {
-  left: 0;
-  bottom: 10%;
-  margin-left: -250px;
-  transform: translate3d(-200px, 0, 0);
-}
-
-.quote__cloud--right {
-  right: 0;
-  bottom: 15%;
-  margin-right: -375px;
-  transform: translate3d(200px, 0, 0) scaleX(-1);
+  background:
+    radial-gradient(70% 50% at 50% 42%, rgba(240, 168, 56, 0.13), transparent 72%),
+    linear-gradient(180deg, #010a17 0%, #0b0a0c 45%, #0b0907 100%);
 }
 
 .quote__content {
@@ -2011,7 +1984,7 @@ h2.tabs__tab {
 .contact {
   position: relative;
   padding: 112px 48px 96px;
-  background: linear-gradient(180deg, #6badc4 0, #2a5f78 70px, #0e2433 200px, var(--bg) 85%);
+  background: linear-gradient(180deg, #0b0907 0, var(--bg) 85%);
   overflow: hidden;
 }
 
@@ -2020,7 +1993,7 @@ h2.tabs__tab {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(700px 360px at 50% 0%, rgba(107, 173, 196, 0.18), transparent 70%);
+  background: none;
 }
 
 .contact__intro {
@@ -2157,7 +2130,7 @@ h2.tabs__tab {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px 32px;
-  color: var(--faint);
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -2247,10 +2220,6 @@ h2.tabs__tab {
 
 /* sm */
 @media (min-width: 640px) {
-  .quote__cloud {
-    display: block;
-  }
-
   .quote__text {
     font-size: 24px;
   }
@@ -2273,18 +2242,6 @@ h2.tabs__tab {
 
   .sound {
     display: flex;
-  }
-
-  .quote__cloud {
-    width: 650px;
-  }
-
-  .quote__cloud--left {
-    margin-left: -325px;
-  }
-
-  .quote__cloud--right {
-    margin-right: -487px;
   }
 
   .quote__text {

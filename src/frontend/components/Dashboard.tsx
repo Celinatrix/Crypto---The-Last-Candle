@@ -11,7 +11,7 @@ import RegisterForm from "./RegisterForm";
 import VolumeChart from "./VolumeChart";
 
 export default function Dashboard() {
-  const { state, reload, markLinked, expiresAt } = useMember();
+  const { state, reload, markLinked, expiresAt, linkOpen } = useMember();
   const [editing, setEditing] = useState(false);
 
   function handleSaved(uid: string, email: string) {
@@ -47,6 +47,7 @@ export default function Dashboard() {
           initialEmail={data.member?.email ?? ""}
           onSuccess={handleSaved}
           onCancel={data.member ? () => setEditing(false) : undefined}
+          botActive={!linkOpen}
         />
       </section>
     );

@@ -16,6 +16,8 @@ interface Props {
   cancelLabel?: string;
   titleId?: string;
   autoFocus?: boolean;
+  /** False while another form on the page has the bot check, so only one runs at a time. */
+  botActive?: boolean;
 }
 
 const UID_RE = /^\d{5,20}$/;
@@ -30,6 +32,7 @@ export default function RegisterForm({
   cancelLabel = "Huỷ",
   titleId,
   autoFocus = false,
+  botActive = true,
 }: Props) {
   const [uid, setUid] = useState(initialUid);
   const [email, setEmail] = useState(initialEmail);
@@ -44,6 +47,9 @@ export default function RegisterForm({
   const [botLoadFailed, setBotLoadFailed] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
   const botReady = !turnstileEnabled || botToken !== null;
+  useEffect(() => {
+    if (!botActive) setBotToken(null);
+  }, [botActive]);
   // Seconds until the code can be re-sent.
   const [cooldown, setCooldown] = useState(0);
   const ids = useId();
@@ -203,7 +209,7 @@ export default function RegisterForm({
         )}
 
         {/* Needed only for "Gửi lại mã"; shown once the cooldown is over. */}
-        {cooldown === 0 && (
+        {cooldown === 0 && botActive && (
           <>
             <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} onError={onBotError} />
             {botNote}
@@ -315,8 +321,12 @@ export default function RegisterForm({
           : "Bắt buộc nhập cả UID BingX và Gmail."}
       </p>
 
-      <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} onError={onBotError} />
-      {botNote}
+      {botActive && (
+        <>
+          <Turnstile ref={turnstileRef} onToken={onBotToken} onLoadError={onBotLoadError} onError={onBotError} />
+          {botNote}
+        </>
+      )}
 
       <div className="form__actions">
         <button

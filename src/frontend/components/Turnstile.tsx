@@ -75,31 +75,44 @@ const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ onToke
   );
 
   useEffect(() => {
-    if (!turnstileEnabled) return;
+    if (!turnstileEnabled || !el.current) return;
     let cancelled = false;
-    loadScript()
-      .then(() => {
-        if (cancelled || !el.current || !window.turnstile) return;
-        widgetId.current = window.turnstile.render(el.current, {
-          sitekey: SITE_KEY,
-          theme: "dark",
-          // "flexible" needs at least 300px; narrower phones would clip the widget.
-          size: el.current.offsetWidth > 0 && el.current.offsetWidth < 300 ? "compact" : "flexible",
-          language: "vi",
-          callback: (token: string) => handlers.current.onToken(token),
-          "expired-callback": () => handlers.current.onToken(null),
-          "error-callback": (code: unknown) => {
-            handlers.current.onToken(null);
-            handlers.current.onError?.(String(code ?? ""));
-            return true; // handled: the form shows the message and a retry button
-          },
+    const start = () => {
+      loadScript()
+        .then(() => {
+          if (cancelled || !el.current || !window.turnstile) return;
+          widgetId.current = window.turnstile.render(el.current, {
+            sitekey: SITE_KEY,
+            theme: "dark",
+            // "flexible" needs at least 300px; narrower phones would clip the widget.
+            size: el.current.offsetWidth > 0 && el.current.offsetWidth < 300 ? "compact" : "flexible",
+            language: "vi",
+            callback: (token: string) => handlers.current.onToken(token),
+            "expired-callback": () => handlers.current.onToken(null),
+            "error-callback": (code: unknown) => {
+              handlers.current.onToken(null);
+              handlers.current.onError?.(String(code ?? ""));
+              return true; // handled: the form shows the message and a retry button
+            },
+          });
+        })
+        .catch(() => {
+          if (!cancelled) handlers.current.onLoadError?.();
         });
-      })
-      .catch(() => {
-        if (!cancelled) handlers.current.onLoadError?.();
-      });
+    };
+    // Cloudflare's script is heavy: load it only once the form is about to be seen.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        start();
+      },
+      { rootMargin: "300px 0px" },
+    );
+    observer.observe(el.current);
     return () => {
       cancelled = true;
+      observer.disconnect();
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
       widgetId.current = null;
     };
