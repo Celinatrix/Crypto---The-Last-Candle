@@ -653,8 +653,18 @@ input {
   font-weight: 600;
 }
 
-.hero__cta {
+.hero__actions {
   margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Stays readable where it crosses the bright rim of the planet. */
+.hero__actions .hero__link {
+  background: rgba(4, 8, 18, 0.72);
 }
 
 .sound {
@@ -713,21 +723,20 @@ input {
   content-visibility: auto;
 }
 
-.members { contain-intrinsic-size: auto 1110px; }
+.members { contain-intrinsic-size: auto 1040px; }
 .premium { contain-intrinsic-size: auto 540px; }
-.quote { contain-intrinsic-size: auto 560px; }
+.quote { contain-intrinsic-size: auto calc(100svh - 260px); }
 .contact { contain-intrinsic-size: auto 335px; }
 
 @media (max-width: 1023px) {
-  .members { contain-intrinsic-size: auto 1700px; }
+  .members { contain-intrinsic-size: auto 1650px; }
   .premium { contain-intrinsic-size: auto 1040px; }
   .contact { contain-intrinsic-size: auto 600px; }
 }
 
 @media (max-width: 599px) {
-  .members { contain-intrinsic-size: auto 2000px; }
+  .members { contain-intrinsic-size: auto 1890px; }
   .premium { contain-intrinsic-size: auto 1137px; }
-  .quote { contain-intrinsic-size: auto 540px; }
 }
 
 /* ---------- Members area ---------- */
@@ -2171,6 +2180,11 @@ h2.tabs__tab {
   font-size: 13px;
 }
 
+.site-footer__legal {
+  flex-basis: 100%;
+  max-width: 76ch;
+}
+
 .site-footer__brand {
   font-family: var(--font-script);
   font-size: 24px;
@@ -2273,7 +2287,7 @@ h2.tabs__tab {
     margin-top: 28px;
   }
 
-  .hero__cta {
+  .hero__actions {
     margin-top: 36px;
   }
 

@@ -18,9 +18,9 @@ function canPlayVideo(): boolean {
 }
 
 export default function Hero() {
-  const { state, openLink } = useMember();
-  const linked = useLinkedMember() !== null;
-  const needsLink = state.kind === "ready" && !linked;
+  const { expiresAt, openLink } = useMember();
+  // Known as soon as the page mounts, so the buttons do not change once the member data arrives.
+  const returning = useLinkedMember() !== null || expiresAt !== null;
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
@@ -83,18 +83,24 @@ export default function Hero() {
           <span lang="en">Steady hands. Lasting volume.</span>
         </h1>
         <p className="hero__sub">
-          Khối lượng giao dịch <strong>30 ngày</strong> của bạn, trong một nơi yên tĩnh. Liên kết UID BingX và Gmail
-          để theo dõi mỗi ngày.
+          Theo dõi khối lượng giao dịch BingX của bạn trong từng chu kỳ nửa tháng và nhận nhắc hạn qua Gmail.
         </p>
-        {needsLink ? (
-          <button type="button" className="pill-btn hero__cta" onClick={openLink}>
-            Liên kết UID BingX
-          </button>
-        ) : (
-          <a className="pill-btn hero__cta" href="#member">
-            Xem khối lượng của bạn
-          </a>
-        )}
+        <div className="hero__actions">
+          {returning ? (
+            <a className="pill-btn" href="#member">
+              Xem khối lượng của bạn
+            </a>
+          ) : (
+            <>
+              <a className="pill-btn" href="#premium">
+                Xem cách tham gia
+              </a>
+              <button type="button" className="btn btn--ghost hero__link" onClick={openLink}>
+                Liên kết UID BingX
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {playing && (

@@ -8,15 +8,13 @@ export default function MembersSection() {
         <p className="eyebrow">Khu vực thành viên</p>
         <h2 id="members-title" className="members__title">
           <span className="font-instrument" lang="en">
-            Your <em>thirty days</em>, at a glance.
+            Your <em>cycle</em>, at a glance.
           </span>
-          <span className="members__title-vi">Khối lượng giao dịch 30 ngày của bạn.</span>
+          <span className="members__title-vi">Khối lượng giao dịch theo chu kỳ của bạn.</span>
         </h2>
         <p className="members__lead">
-          Mỗi tháng có 2 chu kỳ cố định: ngày 1–14 và ngày 15–cuối tháng. Mỗi chu kỳ cần tối thiểu 68.686$ khối
-          lượng giao dịch, tính từ ngày đầu chu kỳ. Đạt sớm thì những ngày còn lại là thời gian nghỉ, volume không
-          chuyển sang chu kỳ sau. Còn 3 ngày mà chưa đủ, bạn sẽ nhận cảnh báo qua Gmail; hết chu kỳ còn 24 giờ gia hạn, sau đó sẽ bị xoá
-          khỏi nhóm.
+          Mỗi tháng có 2 chu kỳ: ngày 1–14 và ngày 15–cuối tháng. Mỗi chu kỳ cần tối thiểu 68.686$ khối lượng. Đạt sớm
+          thì được nghỉ đến hết chu kỳ, volume không chuyển sang chu kỳ sau.
         </p>
       </header>
 
@@ -42,7 +40,8 @@ export default function MembersSection() {
               <span className="rule__num num">03</span>
               <h3 className="rule__title">Cảnh báo &amp; gia hạn 24 giờ</h3>
               <p className="rule__text">
-                Còn 3 ngày mà chưa đủ sẽ có email nhắc. Hết chu kỳ còn 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.
+                Còn 3 ngày mà chưa đủ sẽ có email nhắc. Hết chu kỳ còn 24 giờ gia hạn. Sau đó quản trị viên xem xét việc xoá
+                khỏi nhóm.
               </p>
             </li>
           </ol>

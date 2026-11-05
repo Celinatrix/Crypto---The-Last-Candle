@@ -27,7 +27,7 @@ const dancing = Dancing_Script({
 });
 
 const TITLE = "The Last Candle · Khu vực thành viên";
-const DESCRIPTION = "Theo dõi khối lượng giao dịch 30 ngày và tin tức cộng đồng The Last Candle.";
+const DESCRIPTION = "Theo dõi khối lượng giao dịch BingX theo chu kỳ nửa tháng và nhận nhắc hạn qua Gmail.";
 
 /** Absolute links for the share preview. A malformed SITE_URL must not break the build. */
 function siteBase(): URL {

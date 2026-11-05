@@ -252,8 +252,8 @@ export default function RegisterForm({
       <header className="card__head">
         <h3 id={titleId} className="card__title">{editing ? "Cập nhật UID / email" : "Liên kết tài khoản BingX"}</h3>
         <p className="card__text">
-          Nhập UID tài khoản BingX bạn đã đăng ký qua link đối tác và Gmail để nhận thông báo. Hệ thống sẽ kiểm tra
-          khối lượng giao dịch 30 ngày của bạn ngay sau đó.
+          Nhập UID tài khoản BingX bạn đã đăng ký qua link đối tác và Gmail để nhận thông báo. Hệ thống sẽ kiểm tra UID
+          với BingX rồi gửi mã xác thực qua Gmail.
         </p>
       </header>
 

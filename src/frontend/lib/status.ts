@@ -75,7 +75,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         deadline: p.graceDeadline,
         alert: `Chu kỳ #${p.index} chưa đạt — cần thêm ${fmtUSD(p.remaining)} trước ${fmtDateTime(p.graceDeadline)}.`,
         noteTitle: `Gia hạn 24 giờ: cần thêm ${fmtUSD(p.remaining)}.`,
-        noteBody: `Hết chu kỳ bạn đạt ${fmtUSD(p.volume)} / ${REQ}. Đạt đủ trong 24 giờ gia hạn thì vẫn được giữ lại; nếu đến ${fmtDateTime(p.graceDeadline)} vẫn chưa đủ, bạn sẽ bị xoá khỏi nhóm Premium.`,
+        noteBody: `Hết chu kỳ bạn đạt ${fmtUSD(p.volume)} / ${REQ}. Đạt đủ trong 24 giờ gia hạn thì vẫn được giữ lại; nếu đến ${fmtDateTime(p.graceDeadline)} vẫn chưa đủ, quản trị viên sẽ xem xét việc xoá bạn khỏi nhóm Premium.`,
         progress: p,
       };
     case "failed":
@@ -83,7 +83,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         label: "Không đạt yêu cầu",
         tone: "danger",
         alert: `Chu kỳ #${p.index} không đạt ${REQ} và đã hết 24 giờ gia hạn.`,
-        noteTitle: "Bạn sẽ bị xoá khỏi nhóm Premium theo quy định.",
+        noteTitle: "Quản trị viên sẽ xem xét việc xoá bạn khỏi nhóm Premium theo quy định.",
         noteBody: `Chu kỳ #${p.index} kết thúc với ${fmtUSD(p.volume)} / ${REQ}. Nếu bạn nghĩ có nhầm lẫn (dữ liệu BingX có thể trễ khoảng 1 ngày), hãy liên hệ quản trị viên.`,
         progress: p,
       };
@@ -93,7 +93,7 @@ export function getMemberState(member: Member, volume: VolumeSummary | null, now
         tone: "warn",
         alert: `Còn ${p.daysLeft} ngày — cần thêm ${fmtUSD(p.remaining)} (khoảng ${perDay}/ngày).`,
         noteTitle: `Cảnh báo: còn ${p.daysLeft} ngày, cần thêm ${fmtUSD(p.remaining)}.`,
-        noteBody: `Bạn đang ở ngày ${p.dayOfCycle}/${p.cycleDays} và chưa đạt ${REQ}. Hãy giao dịch khoảng ${perDay} mỗi ngày để kịp hạn ${fmtDateTime(p.deadline)}. Quá hạn sẽ có thêm 24 giờ gia hạn, sau đó bị xoá khỏi nhóm.`,
+        noteBody: `Bạn đang ở ngày ${p.dayOfCycle}/${p.cycleDays} và chưa đạt ${REQ}. Hãy giao dịch khoảng ${perDay} mỗi ngày để kịp hạn ${fmtDateTime(p.deadline)}. Quá hạn sẽ có thêm 24 giờ gia hạn, sau đó quản trị viên xem xét việc xoá khỏi nhóm.`,
         progress: p,
       };
     default:
