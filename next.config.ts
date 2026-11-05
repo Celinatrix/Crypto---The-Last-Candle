@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
         ],
       },
       // Never cache anything personal or authenticated.
-      ...["/api/me", "/api/register", "/api/verify-otp", "/api/auth/logout", "/api/unsubscribe"].map((source) => ({
+      ...["/api/me", "/api/register", "/api/verify-otp", "/api/auth/logout", "/api/unsubscribe", "/api/admin/:path*"].map((source) => ({
         source,
         headers: [{ key: "Cache-Control", value: "no-store" }],
       })),

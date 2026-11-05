@@ -37,6 +37,37 @@ export type MeResponse =
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
 
+/** A linked member as the admin page sees them, with this cycle's volume. */
+export interface AdminMember {
+  memberId: number;
+  uid: string;
+  email: string;
+  status: MemberStatus;
+  joinedAt: string | null;
+  volume: number;
+  tradeDays: number;
+  shortfall: number;
+}
+
+export interface AdminOverview {
+  admin: string;
+  cycle: { start: string; end: string; target: number };
+  lastSync: { status: string; at: string } | null;
+  /** Highest volume first. */
+  members: AdminMember[];
+  kickReviews: {
+    reviewId: number;
+    uid: string;
+    email: string;
+    startDay: string;
+    endDay: string;
+    volume: number;
+    target: number;
+  }[];
+  /** Partner-link UIDs that traded this cycle but never linked the site. */
+  unlinked: { uid: string; volume: number; tradeDays: number }[];
+}
+
 /** A high-impact ("red folder") economic calendar event. */
 export interface CalendarEvent {
   id: string;
