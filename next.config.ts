@@ -4,15 +4,14 @@ const isDev = process.env.NODE_ENV === "development";
 
 /**
  * Content Security Policy: only this site's own scripts, plus Cloudflare Turnstile (bot check).
- * External media actually used by the page: the hero video (CloudFront) and decorative images
- * (any https image). 'unsafe-inline' scripts are needed by Next's inline
- * bootstrap; 'unsafe-eval' and ws: only by the dev server's hot reload.
+ * The only external media is the hero video (CloudFront). 'unsafe-inline' scripts are needed by
+ * Next's inline bootstrap; 'unsafe-eval' and ws: only by the dev server's hot reload.
  */
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
+  "img-src 'self' data: blob:",
   "media-src 'self' https://d8j0ntlcm91z4.cloudfront.net",
   "font-src 'self' data:",
   `connect-src 'self' https://challenges.cloudflare.com${isDev ? " ws:" : ""}`,

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         done = await rpc<boolean>("admin_approve_member", { p_member_id: id, p_by: admin });
         break;
       case "reject":
-        done = await rpc<boolean>("admin_reject_member", { p_member_id: id });
+        done = await rpc<boolean>("admin_reject_member", { p_member_id: id, p_by: admin });
         break;
       case "kick":
         done = await rpc<boolean>("admin_decide_kick", { p_review_id: id, p_decision: "approved", p_by: admin });

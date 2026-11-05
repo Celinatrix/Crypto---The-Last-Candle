@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_REMEMBER_HOURS, ADMIN_SESSION_HOURS, buildAdminCookie, isAdminEmail } from "@/backend/admin";
 import { bytea, eq, rpc, update } from "@/backend/db";
 import { sameOrigin } from "@/backend/guard";
-import { generateSessionToken, otpHash, sha256 } from "@/backend/session";
+import { clientIp, generateSessionToken, otpHash, sha256 } from "@/backend/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
   }
   if (email.length > 254 || !/^\d{6}$/.test(code)) return fail("Mã xác thực gồm 6 chữ số.", 400);
 
-  const expired = "Mã đã hết hạn hoặc chưa được gửi. Hãy yêu cầu mã mới.";
-  if (!isAdminEmail(email)) return fail(expired, 400);
+  // One answer for every failure, so a stranger cannot tell which address is the admin's.
+  const invalid = "Mã không đúng hoặc đã hết hạn. Nhập sai nhiều lần sẽ làm mã mất hiệu lực, khi đó hãy yêu cầu mã mới.";
 
   try {
     const token = generateSessionToken();
@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
       p_email: email,
       p_code_hash: bytea(otpHash("admin", email, code)),
       p_token_hash: tokenHash,
+      p_ip: clientIp(req),
+      p_is_admin: isAdminEmail(email),
     });
     if (result === "ok") {
       let hours = ADMIN_SESSION_HOURS;
@@ -54,9 +56,8 @@ export async function POST(req: NextRequest) {
         { headers: { "Set-Cookie": buildAdminCookie(token, req.nextUrl.protocol === "https:", hours) } },
       );
     }
-    if (result === "no_code") return fail(expired, 400);
-    if (result === "too_many" || result === "wrong:0") return fail("Nhập sai quá nhiều lần. Hãy yêu cầu mã mới.", 429);
-    if (result.startsWith("wrong:")) return fail(`Mã không đúng. Còn ${result.slice(6)} lần thử.`, 400);
+    if (result === "rate_limited") return fail("Thiết bị của bạn đã thử quá nhiều lần. Vui lòng thử lại sau 1 giờ.", 429);
+    if (result === "no_code" || result === "too_many" || result.startsWith("wrong:")) return fail(invalid, 400);
     throw new Error(`admin_verify: ${result}`);
   } catch (err) {
     console.error("[/api/admin/auth/verify]", err);

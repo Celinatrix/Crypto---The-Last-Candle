@@ -101,6 +101,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
           >
             <p className="card__text">
               Nếu <strong>{sentTo}</strong> là địa chỉ quản trị, mã 6 chữ số đã được gửi tới đó. Mã có hiệu lực 10 phút.
+              Không thấy mã sau vài phút thì có thể đã yêu cầu quá nhiều lần, hãy thử lại sau 1 giờ.
             </p>
             {/* Above the code field: typing the 6th digit signs in right away. */}
             <div className="field">
@@ -114,7 +115,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
                 />
                 Ghi nhớ thiết bị này 3 ngày
               </label>
-              <p className="field__hint">Không tick thì phiên kéo dài 12 giờ. Đừng tick trên máy dùng chung.</p>
+              <p className="field__hint">Không tick thì phiên kéo dài 12 giờ. Đừng tick trên máy dùng chung. Nếu mất thiết bị, hãy đăng nhập ở máy khác rồi bấm Đăng xuất mọi thiết bị.</p>
             </div>
             <div className="field">
               <label className="label" htmlFor="admin-code">Mã xác thực</label>
@@ -213,6 +214,7 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -253,6 +255,18 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
   async function signOut() {
     await post("/api/admin/auth/logout").catch(() => undefined);
     onSignedOut();
+  }
+
+  async function signOutEverywhere() {
+    if (!confirmAll) {
+      setConfirmAll(true);
+      return;
+    }
+    setConfirmAll(false);
+    setNotice(null);
+    const r = await post("/api/admin/auth/logout", { all: true }).catch(() => null);
+    if (r?.ok || r?.status === 401) onSignedOut();
+    else setNotice({ tone: "danger", text: r?.error ?? "Không kết nối được máy chủ. Vui lòng thử lại." });
   }
 
   const stats = [
@@ -297,6 +311,9 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
           </button>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => void signOut()}>
             Đăng xuất
+          </button>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => void signOutEverywhere()} onBlur={() => setConfirmAll(false)}>
+            {confirmAll ? "Bấm lần nữa để xác nhận" : "Đăng xuất mọi thiết bị"}
           </button>
         </div>
       </header>
