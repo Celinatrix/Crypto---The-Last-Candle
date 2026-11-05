@@ -236,8 +236,8 @@ export interface PendingApproval {
 
 const approvalHowTo =
   `Kiểm tra UID và Gmail có đúng là của người đó không (ví dụ: họ đã nhắn UID cho bạn qua Telegram). ` +
-  `Đúng: vào Supabase → Table Editor → <strong>members</strong>, tick ô <strong>approved</strong>. ` +
-  `Sai: xoá dòng đó trong <strong>members</strong> để chủ thật của UID đăng ký được.`;
+  `Đúng: vào trang quản trị, tab <strong>Chờ duyệt</strong>, bấm <strong>Duyệt</strong>. ` +
+  `Sai: bấm <strong>Từ chối</strong> để chủ thật của UID đăng ký được.`;
 
 /** Sent right away when someone links a UID (or re-joins after a kick) and waits for approval. */
 export function pendingApprovalEmail(to: string, p: PendingApproval, dashboardUrl: string): EmailMessage {
@@ -247,7 +247,7 @@ export function pendingApprovalEmail(to: string, p: PendingApproval, dashboardUr
     approvalHowTo,
   ];
   const text = [subject, "", ...paragraphs.map((l) => l.replace(/<[^>]+>/g, "")), "", `Duyệt tại: ${dashboardUrl}`].join("\n");
-  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở bảng members" }), text };
+  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở trang quản trị" }), text };
 }
 
 /** Morning digest for the admin: kick reviews and new links waiting for a decision. */
@@ -274,11 +274,11 @@ export function adminDigest(
       ? [
           `<strong>Không đạt chu kỳ</strong> (đã hết 24 giờ gia hạn):`,
           kickRows.join("<br>"),
-          `Vào Supabase → Table Editor → <strong>kick_reviews</strong>, đổi cột <strong>decision</strong> thành <strong>approved</strong> (xoá khỏi nhóm) hoặc <strong>rejected</strong> (giữ lại).`,
+          `Vào trang quản trị, tab <strong>Chờ xét xoá</strong>, bấm <strong>Xoá</strong> hoặc <strong>Giữ lại</strong>.`,
         ]
       : []),
     ...(approvals.length ? [`<strong>Thành viên mới chờ duyệt:</strong>`, approvalRows.join("<br>"), approvalHowTo] : []),
   ];
   const text = [subject, "", ...paragraphs.map((r) => r.replace(/<br>/g, "\n").replace(/<[^>]+>/g, "")), "", `Duyệt tại: ${dashboardUrl}`].join("\n");
-  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở Supabase" }), text };
+  return { to, subject, html: layout(subject, paragraphs, { href: dashboardUrl, label: "Mở trang quản trị" }), text };
 }

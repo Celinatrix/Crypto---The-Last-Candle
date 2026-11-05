@@ -49,11 +49,8 @@ export async function sendCycleNotices(siteUrl: string): Promise<{ sent: number;
   return { sent, failed };
 }
 
-/** Supabase Table Editor link for this project, derived from SUPABASE_URL. */
-function supabaseEditorUrl(): string {
-  const ref = new URL(process.env.SUPABASE_URL ?? "https://x.supabase.co").hostname.split(".")[0];
-  return `https://supabase.com/dashboard/project/${ref}/editor`;
-}
+/** Where the admin makes decisions. */
+const adminPageUrl = () => `${(process.env.SITE_URL ?? "").replace(/\/$/, "")}/admin`;
 
 export async function sendAdminDigest(): Promise<{ kicks: number; approvals: number }> {
   const admins = adminEmails();
@@ -63,7 +60,7 @@ export async function sendAdminDigest(): Promise<{ kicks: number; approvals: num
     select<PendingApproval>("pending_approvals", "select=bingx_uid,email,joined_at"),
   ]);
   if (kicks.length + approvals.length > 0) {
-    for (const to of admins) await sendEmail(adminDigest(to, kicks, approvals, supabaseEditorUrl()));
+    for (const to of admins) await sendEmail(adminDigest(to, kicks, approvals, adminPageUrl()));
   }
   return { kicks: kicks.length, approvals: approvals.length };
 }
@@ -72,7 +69,7 @@ export async function sendAdminDigest(): Promise<{ kicks: number; approvals: num
 export async function notifyPendingApproval(uid: string, email: string): Promise<void> {
   try {
     const p: PendingApproval = { bingx_uid: Number(uid), email, joined_at: new Date().toISOString() };
-    for (const to of adminEmails()) await sendEmail(pendingApprovalEmail(to, p, supabaseEditorUrl()));
+    for (const to of adminEmails()) await sendEmail(pendingApprovalEmail(to, p, adminPageUrl()));
   } catch (err) {
     console.error("[notify] pending approval", err);
   }
