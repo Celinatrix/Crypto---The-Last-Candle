@@ -3,6 +3,10 @@
   "regions": ["bom1"],
   "crons": [
     {
+      "path": "/api/cron/market-brief",
+      "schedule": "0 22 * * *"
+    },
+    {
       "path": "/api/cron/daily-calendar",
       "schedule": "0 0 * * *"
     },

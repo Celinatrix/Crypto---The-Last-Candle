@@ -4,6 +4,8 @@ import { adminCopy, renderDailyEmail, UNSUBSCRIBE_PLACEHOLDER } from "@/backend/
 import { select } from "@/backend/db";
 import { sendBatch, unsubscribeHeaders, unsubscribeUrl } from "@/backend/email";
 import { fetchRedEvents } from "@/backend/ffCalendar";
+import { getApprovedBrief } from "@/backend/marketBrief";
+import { isUsdEvent } from "@/backend/marketBriefText";
 import { adminEmails } from "@/backend/notify";
 import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 
@@ -81,7 +83,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ day, error: `ForexFactory: ${(err as Error).message}` }, { status: 502 });
   }
 
-  const email = events.length > 0 ? renderDailyEmail(events, windowStart, siteUrl) : null;
+  // Only a brief the admin approved (see /api/cron/market-brief). Without one the email still goes out.
+  const brief = events.some(isUsdEvent) ? await getApprovedBrief(day) : null;
+  const email = events.length > 0 ? renderDailyEmail(events, windowStart, siteUrl, { brief }) : null;
 
   if (params.has("preview")) {
     if (!email) return new NextResponse(`Không có tin đỏ nào cho ngày ${day}.`, { status: 200 });
