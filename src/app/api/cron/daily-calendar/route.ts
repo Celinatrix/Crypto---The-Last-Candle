@@ -1,17 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cronAuthorized } from "@/backend/cronAuth";
-import { renderDailyEmail, UNSUBSCRIBE_PLACEHOLDER } from "@/backend/dailyEmail";
+import { adminCopy, renderDailyEmail, UNSUBSCRIBE_PLACEHOLDER } from "@/backend/dailyEmail";
 import { select } from "@/backend/db";
 import { sendBatch, unsubscribeHeaders, unsubscribeUrl } from "@/backend/email";
 import { fetchRedEvents } from "@/backend/ffCalendar";
+import { adminEmails } from "@/backend/notify";
 import { vnDayAt, vnDayKey } from "@/shared/vnTime";
 
 /**
  * Daily 07:00 (Vietnam time) email with today's ForexFactory red-folder events.
  *
  * Triggered by Vercel Cron (vercel.json: "0 0 * * *" = 00:00 UTC = 07:00 GMT+7), which
- * sends `Authorization: Bearer $CRON_SECRET`. Recipients come from public.email_recipients;
- * emails go out through Gmail, one message per member with its own unsubscribe link.
+ * sends `Authorization: Bearer $CRON_SECRET`. Recipients come from public.email_recipients, plus
+ * every ADMIN_EMAIL address; emails go out through Gmail, one message per person. Members get their
+ * own unsubscribe link, admins get a copy without one.
  * Running this by hand again on the same day sends the email again.
  *
  * Manual checks (same Authorization header):
@@ -25,20 +27,24 @@ export const maxDuration = 60;
 const BATCH_SIZE = 100;
 const GMAIL_RE = /^[a-z0-9.+_-]+@(gmail|googlemail)\.com$/i;
 
-/** Active + warned members who have not unsubscribed (public.email_recipients). */
+const adminAddresses = () => adminEmails().map((e) => e.toLowerCase());
+
+/** Active + warned members who have not unsubscribed (public.email_recipients), and the admins. */
 async function fetchRecipients(): Promise<string[]> {
   const rows = await select<{ email: string }>("email_recipients", "select=email");
   const clean = rows.map((r) => r.email.trim().toLowerCase());
-  return [...new Set(clean.filter((e) => GMAIL_RE.test(e)))];
+  return [...new Set([...clean.filter((e) => GMAIL_RE.test(e)), ...adminAddresses()])];
 }
 
-/** One message per recipient, each with its own signed one-click unsubscribe link. */
+/** One message per recipient. Members get their own signed one-click unsubscribe link. */
 async function sendDaily(
   recipients: string[],
   email: ReturnType<typeof renderDailyEmail>,
   siteUrl: string,
 ): Promise<number> {
+  const admins = new Set(adminAddresses());
   const messages = recipients.map((to) => {
+    if (admins.has(to)) return { to, ...adminCopy(email) };
     const url = unsubscribeUrl(siteUrl, to);
     return {
       to,

@@ -10,6 +10,12 @@ export interface DailyEmail {
 /** Replaced per recipient with their signed unsubscribe link (see unsubscribeUrl). */
 export const UNSUBSCRIBE_PLACEHOLDER = "%%UNSUBSCRIBE_URL%%";
 
+/** The part of the footer that only applies to members: why they get it and how to stop it. */
+const MEMBER_FOOTER_HTML = `Bạn nhận email này vì đã liên kết Gmail tại khu vực thành viên The Last Candle.
+                <a href="${UNSUBSCRIBE_PLACEHOLDER}" style="color:#8a8f9c;text-decoration:underline;">Huỷ nhận email này</a>.`;
+const MEMBER_FOOTER_TEXT = `Bạn nhận email này vì đã liên kết Gmail tại The Last Candle.
+Huỷ nhận email này: ${UNSUBSCRIBE_PLACEHOLDER}`;
+
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -86,8 +92,7 @@ export function renderDailyEmail(events: CalendarEvent[], windowStart: number, s
             </tr>
             <tr>
               <td style="padding:18px 28px 24px;background:#fafafc;border-top:1px solid #ececf1;font-size:12px;line-height:1.6;color:#8a8f9c;">
-                Nguồn: ForexFactory (chỉ tin tác động cao). Bạn nhận email này vì đã liên kết Gmail tại khu vực thành viên The Last Candle.
-                <a href="${UNSUBSCRIBE_PLACEHOLDER}" style="color:#8a8f9c;text-decoration:underline;">Huỷ nhận email này</a>.
+                Nguồn: ForexFactory (chỉ tin tác động cao). ${MEMBER_FOOTER_HTML}
               </td>
             </tr>
           </table>
@@ -112,9 +117,20 @@ export function renderDailyEmail(events: CalendarEvent[], windowStart: number, s
     "",
     `Xem lịch trên trang: ${calendarUrl}`,
     "",
-    `Nguồn: ForexFactory. Bạn nhận email này vì đã liên kết Gmail tại The Last Candle.`,
-    `Huỷ nhận email này: ${UNSUBSCRIBE_PLACEHOLDER}`,
+    `Nguồn: ForexFactory. ${MEMBER_FOOTER_TEXT}`,
   ].join("\n");
 
   return { subject, html, text };
+}
+
+/**
+ * The admin's copy. It has no unsubscribe link: that link only changes the members table, so for an
+ * admin it would report success and change nothing.
+ */
+export function adminCopy(email: DailyEmail): DailyEmail {
+  return {
+    subject: email.subject,
+    html: email.html.replace(MEMBER_FOOTER_HTML, ""),
+    text: email.text.replace(MEMBER_FOOTER_TEXT, ""),
+  };
 }
