@@ -79,6 +79,7 @@ Schema: `supabase/migrations/20261112000000_signals.sql`, then `20261112010000_s
 | `GET /api/signals` | Member session: every signal with its replayed outcome `{ signals, updatedAt }`. 401 otherwise. |
 | `GET /api/signals/candles?id=` | Member session: BingX candles around one signal, for its chart. |
 | `GET\|POST /api/admin/signals` | Admin: list (`?price=SYM` live price, `?candles=ID` chart); POST `create`, `move_sl`, `close`. |
+| `GET /api/admin/signals/report?week=YYYY-MM-DD` | Admin: weekly PDF (signals posted Monday–Sunday, Vietnam time): filled / waiting / cancelled, TP / SL counts, winrate, R, R:R and every signal. |
 | `GET\|POST /api/unsubscribe?e=&t=` | Confirmation page / stop the 07:00 email. |
 | `GET /api/cron/*` | Vercel Cron only (`Authorization: Bearer $CRON_SECRET`). |
 

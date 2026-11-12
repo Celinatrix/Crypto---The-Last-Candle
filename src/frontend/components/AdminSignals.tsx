@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import SignalStatsView, { statusOf } from "@/frontend/components/SignalStatsView";
 import { fmtDateTimeShort, fmtPrice, fmtR } from "@/frontend/lib/format";
+import { vnDayKey, vnShortDate } from "@/shared/vnTime";
+import { weekOptions, weekRange } from "@/shared/weeklyReport";
 import {
   avgEntry,
   ladderError,
@@ -100,6 +102,8 @@ export default function AdminSignals({ onSignedOut }: { onSignedOut: () => void 
         </div>
       )}
 
+      {data && <WeeklyReport signals={data.signals} onSignedOut={onSignedOut} />}
+
       <section className="stats__section" aria-label="Lệnh đang chạy">
         <h2 className="stats__title">Đang chạy và chờ khớp ({active.length})</h2>
         {loadError && <div className="alert alert--danger" role="alert">{loadError}</div>}
@@ -123,6 +127,71 @@ export default function AdminSignals({ onSignedOut }: { onSignedOut: () => void 
         </section>
       )}
     </div>
+  );
+}
+
+/** Pick a week (Monday–Sunday, Vietnam time) and download its PDF report. */
+function WeeklyReport({ signals, onSignedOut }: { signals: Signal[]; onSignedOut: () => void }) {
+  const options = useMemo(() => weekOptions(signals), [signals]);
+  const [week, setWeek] = useState(options[0]?.week ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const label = (w: string) => {
+    const { start, end } = weekRange(w);
+    return `${vnShortDate(start)} – ${vnShortDate(end - 1)}/${vnDayKey(end - 1).slice(0, 4)}`;
+  };
+
+  async function download() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/signals/report?week=${week}`, { credentials: "same-origin", cache: "no-store" });
+      if (res.status === 401) return onSignedOut();
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        return setError(body.error ?? "Không tạo được báo cáo.");
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bao-cao-tin-hieu-tuan-${week}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setError("Không kết nối được máy chủ. Vui lòng thử lại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="stats__section" aria-label="Báo cáo tuần">
+      <div className="stats__head">
+        <div>
+          <h2 className="stats__title">Báo cáo tuần (PDF)</h2>
+          <p className="admin__hint">
+            Tổng lệnh đăng trong tuần (thứ Hai – Chủ nhật, giờ Việt Nam): đã khớp, chưa khớp, đã huỷ, số lệnh chạm TP / SL,
+            winrate, lợi nhuận R, R:R và bảng chi tiết từng lệnh.
+          </p>
+        </div>
+        <div className="stats__controls">
+          <select className="input sig__select" aria-label="Chọn tuần" value={week} onChange={(e) => setWeek(e.target.value)}>
+            {options.map((o) => (
+              <option key={o.week} value={o.week}>
+                {label(o.week)} · {o.count} lệnh
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn btn--primary btn--sm" onClick={() => void download()} disabled={busy || !week}>
+            {busy ? "Đang tạo…" : "Tải PDF"}
+          </button>
+        </div>
+      </div>
+      {error && <div className="alert alert--danger" role="alert">{error}</div>}
+    </section>
   );
 }
 

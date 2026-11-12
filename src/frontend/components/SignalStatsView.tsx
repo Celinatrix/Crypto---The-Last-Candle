@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnsChart, Figure } from "@/frontend/components/AdminCharts";
 import { CandleChart, EquityChart, EVENT_LABEL, RHistogram, WinrateBars } from "@/frontend/components/SignalCharts";
 import { fmtDateTimeShort, fmtDayFull, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { computeStats, outcomeOf, plannedRR, type Signal, type SignalCandlesResponse } from "@/shared/signals";
+import { computeStats, plannedRR, statusOf, type Signal, type SignalCandlesResponse } from "@/shared/signals";
 
 type Period = "30" | "90" | "180" | "all";
 type SideFilter = "all" | "long" | "short";
@@ -18,22 +18,7 @@ const PERIODS: [Period, string][] = [
 const SIDE_LABEL = { long: "Long", short: "Short" } as const;
 const PAGE = 15;
 
-export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "warn" | "muted" | "info" } {
-  if (s.status === "pending") return { label: "Chờ khớp", tone: "warn" };
-  if (s.status === "open") {
-    const parts = [
-      ...(s.entry2 !== null && s.tpHits === 0 ? [`khớp ${s.entriesFilled}/2 ET`] : []),
-      ...(s.tpHits ? [`${s.tpHits}/${s.tps.length} TP`] : []),
-    ];
-    return { label: ["Đang chạy", ...parts].join(" · "), tone: "info" };
-  }
-  if (s.status === "cancelled") {
-    return { label: s.exit === "cancel_admin" ? "Đã huỷ" : s.exit === "cancel_sl" ? "Huỷ (chạm SL trước)" : "Huỷ (chạm TP1 trước)", tone: "muted" };
-  }
-  const o = outcomeOf(s.realizedR);
-  const how = s.exit === "tp" ? "hết TP" : s.exit === "sl" ? (s.tpHits ? `${s.tpHits} TP rồi SL` : "SL") : "đóng tay";
-  return { label: `${o === "win" ? "Thắng" : o === "loss" ? "Thua" : "Hoà"} · ${how}`, tone: o === "win" ? "ok" : o === "loss" ? "danger" : "muted" };
-}
+export { statusOf };
 
 export default function SignalStatsView({
   signals,

@@ -171,9 +171,12 @@ async function slMovesOf(ids: number[]): Promise<Map<number, { at: number; price
   return map;
 }
 
-/** All signals, newest first, with their events. */
-export async function listSignals(limit = 500): Promise<Signal[]> {
-  const rows = await select<SignalRow>("signals", `select=${COLUMNS}&order=created_at.desc&limit=${limit}`);
+/** Signals newest first, with their events; `posted` limits them to [from, to) by post time (ms). */
+export async function listSignals(limit = 500, posted?: { from: number; to: number }): Promise<Signal[]> {
+  const range = posted
+    ? `&created_at=gte.${encodeURIComponent(new Date(posted.from).toISOString())}&created_at=lt.${encodeURIComponent(new Date(posted.to).toISOString())}`
+    : "";
+  const rows = await select<SignalRow>("signals", `select=${COLUMNS}${range}&order=created_at.desc&limit=${limit}`);
   if (!rows.length) return [];
   const events = await select<EventRow>(
     "signal_events",

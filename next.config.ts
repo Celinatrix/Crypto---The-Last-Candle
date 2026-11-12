@@ -26,7 +26,11 @@ const csp = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Excel writer (cycle report): load from node_modules at runtime instead of bundling it.
-  serverExternalPackages: ["exceljs", "nodemailer"],
+  serverExternalPackages: ["exceljs", "nodemailer", "pdf-lib", "@pdf-lib/fontkit"],
+  // The weekly PDF report reads its Vietnamese font files from disk at runtime.
+  outputFileTracingIncludes: {
+    "/api/admin/signals/report": ["./src/backend/fonts/*.ttf"],
+  },
   reactStrictMode: true,
   async headers() {
     return [
