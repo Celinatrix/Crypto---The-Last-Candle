@@ -2856,7 +2856,8 @@ h2.tabs__tab {
 
 /* ---------- Admin statistics and charts ---------- */
 
-.admin {
+.admin,
+.signals {
   /* Categorical chart colors, validated against this dark surface (dataviz validate_palette). */
   --viz-1: #3987e5;
   --viz-2: #d95926;
@@ -3180,4 +3181,361 @@ h2.tabs__tab {
   height: 18px;
   accent-color: #fff;
   cursor: pointer;
+}
+
+/* ---------- Signal statistics (home page section and admin tab) ---------- */
+
+.signals {
+  position: relative;
+  padding: 112px 48px 112px;
+  background: linear-gradient(180deg, var(--night) 0%, #070a12 55%, var(--bg) 100%);
+}
+
+.signals__body {
+  position: relative;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.signals__locked {
+  max-width: 640px;
+}
+
+.sig {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.sig__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.sig__seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sig__select {
+  width: auto;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.sig__select option {
+  background: #16161a;
+}
+
+.sig__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sig__tile-sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--faint);
+}
+
+.sig .is-ok {
+  color: var(--ok);
+}
+
+.sig .is-danger {
+  color: var(--danger);
+}
+
+.sig__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sig__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sig__wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.sig__direct {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.sig__level {
+  fill: var(--text-80);
+}
+
+.sig__group {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sig-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sig-bars li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 104px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.sig-bars__label {
+  color: var(--text-80);
+  overflow-wrap: anywhere;
+}
+
+.sig-bars__track {
+  position: relative;
+  height: 16px;
+  border-left: 1px solid var(--viz-axis);
+}
+
+.sig-bars__bar {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+
+.sig-bars__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.sig-bars__value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.sig-bars__value small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sig__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sig__table td {
+  font-size: 13px;
+}
+
+.sig__row.is-open td {
+  border-bottom-color: transparent;
+}
+
+.sig__toggle {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sig__side {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sig__side.is-long {
+  background: rgba(57, 135, 229, 0.16);
+  color: #8fc1ff;
+}
+
+.sig__side.is-short {
+  background: rgba(217, 89, 38, 0.16);
+  color: #ffab85;
+}
+
+.sig__type,
+.sig__was,
+.sig__optional {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.admin__badge.is-info {
+  background: rgba(57, 135, 229, 0.14);
+  color: #8fc1ff;
+}
+
+.sig__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 12px;
+}
+
+.sig__note {
+  padding: 10px 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--text-80);
+}
+
+.sig__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  font-size: 13px;
+}
+
+.sig__timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--text-80);
+}
+
+.sig__timeline-at {
+  min-width: 92px;
+  color: var(--muted);
+}
+
+.sig__more {
+  align-self: center;
+}
+
+.sig-form {
+  padding: 20px;
+  border-radius: var(--radius-sm);
+  gap: 16px;
+}
+
+.sig-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.sig-form .input {
+  min-height: 42px;
+  font-size: 15px;
+}
+
+.sig-form__inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sig-form__inline .input {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 38px;
+}
+
+.sig-form__preview {
+  font-size: 13px;
+  color: var(--text-80);
+}
+
+.sig-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: min(100%, 300px);
+}
+
+@media (max-width: 1023px) {
+  .signals {
+    padding: 88px 24px;
+  }
+
+  .sig__tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sig__figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 599px) {
+  .signals {
+    padding: 72px 16px;
+  }
+
+  .sig-bars li {
+    grid-template-columns: 52px minmax(0, 1fr) 92px;
+    gap: 6px;
+  }
+
+  .sig__detail-row td::before {
+    display: none;
+  }
+}
+
+/* Coin pair field: the base coin is typed, "USDT" is fixed after a divider ("BTC | USDT"). */
+.sig-pair {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: text;
+}
+
+.sig-pair:focus-within {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
+}
+
+.sig-pair__base {
+  flex: 0 1 auto;
+  width: 7ch;
+  min-width: 3ch;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sig-pair__base::placeholder {
+  color: var(--faint);
+}
+
+.sig-pair__sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background: var(--text-80);
+}
+
+.sig-pair__quote {
+  flex: none;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  user-select: none;
 }

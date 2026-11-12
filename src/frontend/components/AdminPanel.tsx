@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Wordmark from "./Wordmark";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import AdminSignals from "@/frontend/components/AdminSignals";
 import AdminStats from "@/frontend/components/AdminStats";
 import Turnstile, { turnstileEnabled, type TurnstileHandle } from "@/frontend/components/Turnstile";
 import { fmtDateTime, fmtDayFull, fmtUSD } from "@/frontend/lib/format";
@@ -197,7 +198,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   );
 }
 
-type Tab = "stats" | "pending" | "members" | "kicks" | "unlinked";
+type Tab = "stats" | "signals" | "pending" | "members" | "kicks" | "unlinked";
 type Filter = "all" | "met" | "short";
 
 function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload: () => Promise<void>; onSignedOut: () => void }) {
@@ -280,6 +281,7 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "stats", label: "Thống kê" },
+    { id: "signals", label: "Tín hiệu" },
     { id: "pending", label: "Chờ duyệt", count: pending.length },
     { id: "members", label: "Thành viên", count: members.length },
     { id: "kicks", label: "Chờ xét xoá", count: kickReviews.length },
@@ -349,6 +351,7 @@ function Dashboard({ data, reload, onSignedOut }: { data: AdminOverview; reload:
       </div>
 
       {tab === "stats" && <AdminStats overview={data} onSignedOut={onSignedOut} />}
+      {tab === "signals" && <AdminSignals onSignedOut={onSignedOut} />}
 
       {tab === "pending" && (
         <section aria-label="Chờ duyệt">

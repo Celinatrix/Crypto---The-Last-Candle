@@ -14,6 +14,7 @@ interface NavLink {
 
 const LINKS: readonly NavLink[] = [
   { href: "#member", label: "Khối lượng" },
+  { href: "#signals", label: "Thống kê lệnh" },
   { href: "#premium", label: "Tham gia nhóm Premium - Signal", accent: true },
   { href: "#news", label: "Tin tức" },
   { href: "#rules", label: "Quy định" },

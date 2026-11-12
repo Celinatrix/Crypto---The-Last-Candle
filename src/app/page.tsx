@@ -6,6 +6,7 @@ import { MemberProvider } from "@/frontend/components/MemberProvider";
 import MembersSection from "@/frontend/components/MembersSection";
 import PremiumSection from "@/frontend/components/PremiumSection";
 import QuoteSection from "@/frontend/components/QuoteSection";
+import SignalsSection from "@/frontend/components/SignalsSection";
 import SiteNav from "@/frontend/components/SiteNav";
 import Wordmark from "@/frontend/components/Wordmark";
 
@@ -18,6 +19,7 @@ export default function Home() {
         <main>
           <Hero />
           <Journey members={<MembersSection />} premium={<PremiumSection />} />
+          <SignalsSection />
           <QuoteSection />
           <ContactSection />
         </main>
