@@ -283,6 +283,24 @@ export type Outcome = "win" | "loss" | "breakeven";
 
 export const outcomeOf = (r: number): Outcome => (r > EPS ? "win" : r < -EPS ? "loss" : "breakeven");
 
+/** Vietnamese status label of a signal, and the tone it is shown in. Shared by the page and the PDF. */
+export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "warn" | "muted" | "info" } {
+  if (s.status === "pending") return { label: "Chờ khớp", tone: "warn" };
+  if (s.status === "open") {
+    const parts = [
+      ...(s.entry2 !== null && s.tpHits === 0 ? [`khớp ${s.entriesFilled}/2 ET`] : []),
+      ...(s.tpHits ? [`${s.tpHits}/${s.tps.length} TP`] : []),
+    ];
+    return { label: ["Đang chạy", ...parts].join(" · "), tone: "info" };
+  }
+  if (s.status === "cancelled") {
+    return { label: s.exit === "cancel_admin" ? "Đã huỷ" : s.exit === "cancel_sl" ? "Huỷ (chạm SL trước)" : "Huỷ (chạm TP1 trước)", tone: "muted" };
+  }
+  const o = outcomeOf(s.realizedR);
+  const how = s.exit === "tp" ? "hết TP" : s.exit === "sl" ? (s.tpHits ? `${s.tpHits} TP rồi SL` : "SL") : "đóng tay";
+  return { label: `${o === "win" ? "Thắng" : o === "loss" ? "Thua" : "Hoà"} · ${how}`, tone: o === "win" ? "ok" : o === "loss" ? "danger" : "muted" };
+}
+
 export interface GroupStats {
   key: string;
   trades: number;
