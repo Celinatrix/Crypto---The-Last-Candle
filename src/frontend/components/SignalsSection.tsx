@@ -46,7 +46,7 @@ export default function SignalsSection() {
         </h2>
         <p className="members__lead">
           Mỗi tín hiệu được chấm tự động theo giá BingX nến 1 phút: chạm TP hay SL trước. Lợi nhuận tính theo R, với 1R là
-          khoảng cách từ Entry đến SL ban đầu. Lệnh nhiều TP chốt đều từng phần. Kết quả quá khứ không đảm bảo kết quả tương
+          khoảng cách từ Entry đến SL ban đầu. Kèo 2 ET chia đôi vị thế và tính từ giá trung bình. Lệnh nhiều TP chốt đều từng phần. Kết quả quá khứ không đảm bảo kết quả tương
           lai.
         </p>
       </header>

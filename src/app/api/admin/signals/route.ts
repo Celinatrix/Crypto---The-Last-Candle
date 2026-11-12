@@ -3,7 +3,8 @@
  *   GET  /api/admin/signals             every signal, replayed up to the last closed minute
  *   GET  /api/admin/signals?price=SYM   BingX last price for the form ({ price } or 404)
  *   GET  /api/admin/signals?candles=ID  BingX candles around one signal, for its chart
- *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, sl, tps, note }
+ *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, entry2?, sl, tps, note }
+ *                                       (entry2: optional second entry, limit only)
  *                                       { action: "move_sl", id, price }
  *                                       { action: "close", id, price }   (a pending signal is cancelled)
  * Signed-in admins only; POST also needs a same-origin request.
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
           (b.side !== "long" && b.side !== "short") ||
           (b.orderType !== "market" && b.orderType !== "limit") ||
           !isPrice(b.entry) ||
+          (b.entry2 !== undefined && b.entry2 !== null && !isPrice(b.entry2)) ||
           !isPrice(b.sl) ||
           tps.length < 1 ||
           tps.length > 3 ||
@@ -85,7 +87,16 @@ export async function POST(req: NextRequest) {
         }
         const note = typeof b.note === "string" && b.note.trim() ? b.note.trim().slice(0, 500) : null;
         const id = await createSignal(
-          { symbol: b.symbol, side: b.side, orderType: b.orderType, entry: b.entry, sl: b.sl, tps: tps as number[], note },
+          {
+            symbol: b.symbol,
+            side: b.side,
+            orderType: b.orderType,
+            entry: b.entry,
+            entry2: isPrice(b.entry2) ? b.entry2 : null,
+            sl: b.sl,
+            tps: tps as number[],
+            note,
+          },
           admin,
         );
         return NextResponse.json({ ok: true, id });

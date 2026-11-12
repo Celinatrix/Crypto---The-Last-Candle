@@ -4,14 +4,17 @@
  * mocks, so every place scores a signal the same way.
  *
  * Rules (agreed with the owner):
- * - 1R = |entry − original SL|. Moving the SL later never changes 1R.
- * - The position is split evenly across its 1–3 take-profits; each TP closes 1/n of it.
+ * - A limit signal may have two entries (ET1 nearer the price, ET2 deeper towards the SL), each half of
+ *   the position. 1R = |average planned entry − original SL|: a fully filled position stopped out loses
+ *   1R, one filled at ET1 only loses less. Moving the SL later never changes 1R.
+ * - Once TP1 is reached, an entry that has not filled is dropped.
+ * - What has filled is split evenly across the 1–3 take-profits; each TP closes 1/n of it.
  * - The SL stays where it is after a TP, unless the admin moves it (a dated "sl_moved" event).
  * - Market orders are filled at the posted entry. Limit orders wait until a candle touches the entry; if a
  *   candle reaches the SL or TP1 first, the signal is cancelled and left out of the statistics.
  * - Replay starts at the first full 1-minute candle after the post. When one candle reaches both the SL
  *   and a TP, the SL counts (the cautious reading). On the candle that fills a limit order only the SL is
- *   checked; its TPs count from the next candle.
+ *   checked; its TPs count from the next candle. The same holds for the candle that fills ET2.
  * - A signal is a win when its total R is above 0, a loss below 0, breakeven at 0.
  */
 
@@ -35,7 +38,12 @@ export interface Signal {
   symbol: string;
   side: SignalSide;
   orderType: SignalOrderType;
+  /** ET1: the entry nearer the price at posting. */
   entry: number;
+  /** ET2 (limit signals only): the deeper entry. With it, each entry is half the position. */
+  entry2: number | null;
+  /** How many entries have filled: 0 (waiting), 1 or 2. */
+  entriesFilled: number;
   /** The original stop: defines 1R. */
   sl: number;
   /** The stop in force now (the latest move, or the original). */
@@ -84,6 +92,8 @@ const EPS = 1e-9;
 export interface EngineState {
   side: SignalSide;
   entry: number;
+  entry2: number | null;
+  entriesFilled: number;
   sl: number;
   tps: number[];
   status: SignalStatus;
@@ -107,19 +117,46 @@ export interface SlMove {
   price: number;
 }
 
-/** R of the whole position if it closed at `price`. */
-export function rAt(s: Pick<EngineState, "side" | "entry" | "sl">, price: number): number {
-  const risk = Math.abs(s.entry - s.sl);
-  if (!(risk > 0)) return 0;
-  return (s.side === "long" ? price - s.entry : s.entry - price) / risk;
+type Plan = Pick<EngineState, "side" | "entry" | "entry2" | "sl">;
+
+/** The planned entries with their share of the position: [ET1 1] or [ET1 ½, ET2 ½]. */
+export function entriesOf(s: Pick<EngineState, "entry" | "entry2">): { price: number; w: number }[] {
+  return s.entry2 === null ? [{ price: s.entry, w: 1 }] : [{ price: s.entry, w: 0.5 }, { price: s.entry2, w: 0.5 }];
 }
 
-/** Part of the position still open: (n − TPs hit) / n. */
-export const remainingOf = (s: Pick<EngineState, "tps" | "tpHits">) => (s.tps.length - s.tpHits) / s.tps.length;
+/** Weighted average of the planned entries. */
+export const avgEntry = (s: Pick<EngineState, "entry" | "entry2">) => entriesOf(s).reduce((sum, e) => sum + e.price * e.w, 0);
 
-/** Average R:R of the TPs (what the signal earns if every TP is hit). */
-export function plannedRR(s: Pick<EngineState, "side" | "entry" | "sl" | "tps">): number {
+/** Size and average price of what has filled so far (share of the planned position). */
+export function filledOf(s: Pick<EngineState, "entry" | "entry2" | "entriesFilled">): { qty: number; avg: number } {
+  const filled = entriesOf(s).slice(0, s.entriesFilled);
+  const qty = filled.reduce((sum, e) => sum + e.w, 0);
+  return { qty, avg: qty > 0 ? filled.reduce((sum, e) => sum + e.price * e.w, 0) / qty : s.entry };
+}
+
+/** R of `qty` (a share of the planned position) bought at `from` and closed at `price`. */
+function pnl(s: Plan, qty: number, from: number, price: number): number {
+  const risk = Math.abs(avgEntry(s) - s.sl);
+  if (!(risk > 0)) return 0;
+  return (qty * (s.side === "long" ? price - from : from - price)) / risk;
+}
+
+/** R of the whole planned position, from its average entry, if it closed at `price`. */
+export const rAt = (s: Plan, price: number) => pnl(s, 1, avgEntry(s), price);
+
+/** Share of the planned position still open: what filled × (n − TPs hit) / n. */
+export const remainingOf = (s: Pick<EngineState, "entry" | "entry2" | "entriesFilled" | "tps" | "tpHits">) =>
+  (filledOf(s).qty * (s.tps.length - s.tpHits)) / s.tps.length;
+
+/** Average R:R of the TPs (what the signal earns if both entries fill and every TP is hit). */
+export function plannedRR(s: Plan & Pick<EngineState, "tps">): number {
   return s.tps.reduce((sum, tp) => sum + rAt(s, tp), 0) / s.tps.length;
+}
+
+/** Two entries in either order → [ET1 nearer the TPs, ET2 nearer the SL]. */
+export function orderEntries(side: SignalSide, a: number, b: number | null): [number, number | null] {
+  if (b === null) return [a, null];
+  return side === "long" ? [Math.max(a, b), Math.min(a, b)] : [Math.min(a, b), Math.max(a, b)];
 }
 
 const round = (v: number, digits = 6) => Math.round(v * 10 ** digits) / 10 ** digits;
@@ -135,10 +172,11 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
   const sorted = [...moves].sort((a, b) => a.at - b.at);
   let mi = 0;
 
-  const closeAt = (at: number, price: number, kind: "sl" | "tp", r: number) => {
+  const book = (at: number, price: number, kind: "sl" | "tp", r: number) => {
     s.realizedR = s.realizedR + r;
     events.push({ at, kind, price, r: round(r) });
   };
+  const entries = entriesOf(s);
 
   for (const c of candles) {
     if (s.status === "closed" || s.status === "cancelled") break;
@@ -146,19 +184,28 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
 
     const hitsSl = long ? c.low <= s.currentSl : c.high >= s.currentSl;
     const reaches = (tp: number) => (long ? c.high >= tp : c.low <= tp);
+    // ET1 fills when the candle trades through it; ET2 (deeper) when the price comes down (up) to it.
+    // An entry at or beyond the stop in force (the SL was moved past ET2) can no longer fill.
+    const fills = (i: number) => {
+      const p = entries[i]!.price;
+      if (long ? p <= s.currentSl : p >= s.currentSl) return false;
+      return i === 0 ? c.low <= p && p <= c.high : long ? c.low <= p : c.high >= p;
+    };
 
-    if (s.status === "pending") {
-      if (c.low <= s.entry && s.entry <= c.high) {
+    // Entries fill until the first TP; on a filling candle only the stop is checked afterwards.
+    let filledNow = false;
+    while (s.tpHits === 0 && s.entriesFilled < entries.length && fills(s.entriesFilled)) {
+      events.push({ at: c.time, kind: "filled", price: entries[s.entriesFilled]!.price, r: null });
+      s.entriesFilled++;
+      filledNow = true;
+      if (s.status === "pending") {
         s.status = "open";
         s.filledAt = c.time;
-        events.push({ at: c.time, kind: "filled", price: s.entry, r: null });
-        if (hitsSl) {
-          closeAt(c.time, s.currentSl, "sl", remainingOf(s) * rAt(s, s.currentSl));
-          s.status = "closed";
-          s.exit = "sl";
-          s.closedAt = c.time;
-        }
-      } else if (hitsSl || reaches(s.tps[0]!)) {
+      }
+    }
+
+    if (s.status === "pending") {
+      if (hitsSl || reaches(s.tps[0]!)) {
         s.status = "cancelled";
         s.exit = hitsSl ? "cancel_sl" : "cancel_tp";
         s.closedAt = c.time;
@@ -168,16 +215,18 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
     }
 
     // Open position: the stop first, then every TP the candle reached.
+    const filled = filledOf(s);
     if (hitsSl) {
-      closeAt(c.time, s.currentSl, "sl", remainingOf(s) * rAt(s, s.currentSl));
+      book(c.time, s.currentSl, "sl", pnl(s, remainingOf(s), filled.avg, s.currentSl));
       s.status = "closed";
       s.exit = "sl";
       s.closedAt = c.time;
       continue;
     }
+    if (filledNow) continue;
     while (s.tpHits < s.tps.length && reaches(s.tps[s.tpHits]!)) {
       const tp = s.tps[s.tpHits]!;
-      closeAt(c.time, tp, "tp", rAt(s, tp) / s.tps.length);
+      book(c.time, tp, "tp", pnl(s, filled.qty / s.tps.length, filled.avg, tp));
       s.tpHits++;
     }
     if (s.tpHits === s.tps.length) {
@@ -199,7 +248,7 @@ export function closeByHand(start: EngineState, price: number | null, at: number
     return { state: s, events: [{ at, kind: "cancelled", price: price ?? s.entry, r: null }] };
   }
   if (s.status !== "open" || price === null) return { state: s, events: [] };
-  const r = remainingOf(s) * rAt(s, price);
+  const r = pnl(s, remainingOf(s), filledOf(s).avg, price);
   s.realizedR = s.realizedR + r;
   s.status = "closed";
   s.exit = "manual";
@@ -207,16 +256,21 @@ export function closeByHand(start: EngineState, price: number | null, at: number
   return { state: s, events: [{ at, kind: "manual_close", price, r: round(r) }] };
 }
 
-/** Checks the price ladder: long SL < entry < TP1 < TP2 < TP3, short the other way round. */
-export function ladderError(side: SignalSide, entry: number, sl: number, tps: number[]): string | null {
-  const nums = [entry, sl, ...tps];
+/**
+ * Checks the price ladder: long SL < ET2 < ET1 < TP1 < TP2 < TP3, short the other way round.
+ * `entry2` must already be ordered (orderEntries).
+ */
+export function ladderError(side: SignalSide, entry: number, sl: number, tps: number[], entry2: number | null = null): string | null {
+  const nums = [entry, sl, ...tps, ...(entry2 === null ? [] : [entry2])];
   if (nums.some((n) => !Number.isFinite(n) || n <= 0)) return "Giá phải là số dương.";
   if (tps.length < 1 || tps.length > 3) return "Cần từ 1 đến 3 TP.";
+  if (entry2 !== null && entry2 === entry) return "Hai ET phải khác nhau.";
   const up = side === "long";
-  const ladder = [sl, entry, ...tps];
+  const ladder = [sl, ...(entry2 === null ? [] : [entry2]), entry, ...tps];
   for (let i = 1; i < ladder.length; i++) {
     if (up ? !(ladder[i]! > ladder[i - 1]!) : !(ladder[i]! < ladder[i - 1]!)) {
-      return up ? "Lệnh Long cần SL < Entry < TP1 < TP2 < TP3." : "Lệnh Short cần SL > Entry > TP1 > TP2 > TP3.";
+      const et = entry2 === null ? "Entry" : up ? "ET2 < ET1" : "ET2 > ET1";
+      return up ? `Lệnh Long cần SL < ${et} < TP1 < TP2 < TP3.` : `Lệnh Short cần SL > ${et} > TP1 > TP2 > TP3.`;
     }
   }
   return null;

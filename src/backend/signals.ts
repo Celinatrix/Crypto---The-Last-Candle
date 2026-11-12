@@ -12,6 +12,7 @@ import {
   closeByHand,
   ladderError,
   MINUTE_MS,
+  orderEntries,
   type CandlePoint,
   type EngineEvent,
   type EngineState,
@@ -90,6 +91,8 @@ interface SignalRow {
   side: SignalSide;
   order_type: SignalOrderType;
   entry: number;
+  entry2: number | null;
+  entries_filled: number;
   sl: number;
   current_sl: number;
   tps: number[];
@@ -113,7 +116,7 @@ interface EventRow {
 }
 
 const COLUMNS =
-  "id,symbol,side,order_type,entry,sl,current_sl,tps,note,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until";
+  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until";
 
 const num = (v: unknown) => Number(v);
 
@@ -121,6 +124,8 @@ function toState(row: SignalRow): EngineState {
   return {
     side: row.side,
     entry: num(row.entry),
+    entry2: row.entry2 === null ? null : num(row.entry2),
+    entriesFilled: row.entries_filled,
     sl: num(row.sl),
     tps: row.tps.map(num),
     status: row.status,
@@ -144,6 +149,7 @@ async function apply(row: SignalRow, state: EngineState, checkedUntil: number, e
       status: state.status,
       current_sl: state.currentSl,
       tp_hits: state.tpHits,
+      entries_filled: state.entriesFilled,
       realized_r: state.realizedR,
       exit_reason: state.exit,
       filled_at: iso(state.filledAt),
@@ -189,6 +195,8 @@ export async function listSignals(limit = 500): Promise<Signal[]> {
       side: row.side,
       orderType: row.order_type,
       entry: num(row.entry),
+      entry2: row.entry2 === null ? null : num(row.entry2),
+      entriesFilled: row.entries_filled,
       sl: num(row.sl),
       currentSl: lastMove?.price ?? num(row.current_sl),
       tps: row.tps.map(num),
@@ -273,6 +281,8 @@ export interface NewSignal {
   side: SignalSide;
   orderType: SignalOrderType;
   entry: number;
+  /** Optional second entry, limit signals only; either order is accepted. */
+  entry2: number | null;
   sl: number;
   tps: number[];
   note: string | null;
@@ -286,7 +296,9 @@ const MARKET_TOLERANCE = 0.03;
 export async function createSignal(input: NewSignal, by: string): Promise<number> {
   const symbol = input.symbol.trim().toUpperCase();
   if (!SYMBOL_RE.test(symbol)) throw new SignalInputError("Cặp coin phải có dạng BTC-USDT.");
-  const ladder = ladderError(input.side, input.entry, input.sl, input.tps);
+  if (input.entry2 !== null && input.orderType !== "limit") throw new SignalInputError("Chỉ lệnh Limit mới có 2 ET.");
+  const [entry, entry2] = orderEntries(input.side, input.entry, input.entry2);
+  const ladder = ladderError(input.side, entry, input.sl, input.tps, entry2);
   if (ladder) throw new SignalInputError(ladder);
 
   const price = await fetchPrice(symbol);
@@ -297,8 +309,8 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
   if (long ? price <= input.sl || price >= tp1 : price >= input.sl || price <= tp1) {
     throw new SignalInputError(`Giá hiện tại (${price}) đã vượt SL hoặc TP1.`);
   }
-  if (input.orderType === "market" && Math.abs(input.entry - price) / price > MARKET_TOLERANCE) {
-    const off = ((Math.abs(input.entry - price) / price) * 100).toFixed(1);
+  if (input.orderType === "market" && Math.abs(entry - price) / price > MARKET_TOLERANCE) {
+    const off = ((Math.abs(entry - price) / price) * 100).toFixed(1);
     throw new SignalInputError(`Entry lệnh Market lệch ${off}% so với giá hiện tại (${price}). Kiểm tra lại giá.`);
   }
 
@@ -309,7 +321,9 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
     symbol,
     side: input.side,
     order_type: input.orderType,
-    entry: input.entry,
+    entry,
+    entry2,
+    entries_filled: market ? 1 : 0,
     sl: input.sl,
     current_sl: input.sl,
     tps: input.tps,
@@ -319,9 +333,9 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
     checked_until: new Date(firstMinute).toISOString(),
     created_by: by,
   });
-  await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "created", price: input.entry, by });
+  await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "created", price: entry, by });
   if (market) {
-    await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "filled", price: input.entry, by });
+    await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "filled", price: entry, by });
   }
   return row.id;
 }

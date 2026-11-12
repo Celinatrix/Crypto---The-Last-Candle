@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import SignalStatsView, { statusOf } from "@/frontend/components/SignalStatsView";
 import { fmtDateTimeShort, fmtPrice, fmtR } from "@/frontend/lib/format";
 import {
+  avgEntry,
   ladderError,
+  orderEntries,
   plannedRR,
   rAt,
   type Signal,
@@ -131,6 +133,8 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
   const [side, setSide] = useState<SignalSide>("long");
   const [orderType, setOrderType] = useState<SignalOrderType>("market");
   const [entry, setEntry] = useState("");
+  // Limit only: an optional second entry. Either order is accepted; the deeper one becomes ET2.
+  const [entry2, setEntry2] = useState("");
   const [sl, setSl] = useState("");
   const [tps, setTps] = useState(["", "", ""]);
   const [note, setNote] = useState("");
@@ -138,11 +142,24 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const nums = { entry: parsePrice(entry), sl: parsePrice(sl), tps: tps.map(parsePrice).filter((n) => !Number.isNaN(n)) };
+  const limit = orderType === "limit";
+  const twoEntries = limit && entry2.trim() !== "";
+  const nums = {
+    entry: parsePrice(entry),
+    entry2: twoEntries ? parsePrice(entry2) : null,
+    sl: parsePrice(sl),
+    tps: tps.map(parsePrice).filter((n) => !Number.isNaN(n)),
+  };
   const filledTps = tps.filter((t) => t.trim() !== "");
-  const ready = !Number.isNaN(nums.entry) && !Number.isNaN(nums.sl) && nums.tps.length > 0 && nums.tps.length === filledTps.length;
-  const ladder = ready ? ladderError(side, nums.entry, nums.sl, nums.tps) : null;
-  const preview = ready && !ladder ? { side, entry: nums.entry, sl: nums.sl, tps: nums.tps } : null;
+  const ready =
+    !Number.isNaN(nums.entry) &&
+    !(nums.entry2 !== null && Number.isNaN(nums.entry2)) &&
+    !Number.isNaN(nums.sl) &&
+    nums.tps.length > 0 &&
+    nums.tps.length === filledTps.length;
+  const [et1, et2] = orderEntries(side, nums.entry, nums.entry2);
+  const ladder = ready ? ladderError(side, et1, nums.sl, nums.tps, et2) : null;
+  const preview = ready && !ladder ? { side, entry: et1, entry2: et2, sl: nums.sl, tps: nums.tps } : null;
 
   async function fetchLive() {
     setError(null);
@@ -162,10 +179,11 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
     setBusy(true);
     setError(null);
     try {
-      const r = await post({ action: "create", symbol, side, orderType, entry: nums.entry, sl: nums.sl, tps: nums.tps, note });
+      const r = await post({ action: "create", symbol, side, orderType, entry: preview.entry, entry2: preview.entry2, sl: nums.sl, tps: nums.tps, note });
       if (r.status === 401) return onSignedOut();
       if (!r.ok) return setError(r.error ?? "Không đăng được tín hiệu.");
       setEntry("");
+      setEntry2("");
       setSl("");
       setTps(["", "", ""]);
       setNote("");
@@ -228,12 +246,16 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
       <div className="sig-form__row">
         {(
           [
-            ["sig-entry", "Entry", entry, setEntry],
-            ["sig-sl", "SL", sl, setSl],
+            ["sig-entry", limit ? "ET1" : "Entry", entry, setEntry, false],
+            ...(limit ? ([["sig-entry2", "ET2", entry2, setEntry2, true]] as const) : []),
+            ["sig-sl", "SL", sl, setSl, false],
           ] as const
-        ).map(([id, label, value, set]) => (
+        ).map(([id, label, value, set, optional]) => (
           <div className="field" key={id}>
-            <label className="label" htmlFor={id}>{label}</label>
+            <label className="label" htmlFor={id}>
+              {label}
+              {optional && <span className="sig__optional"> (tuỳ chọn)</span>}
+            </label>
             <input id={id} className="input input--mono" inputMode="decimal" value={value} onChange={(e) => set(e.target.value)} autoComplete="off" />
           </div>
         ))}
@@ -260,7 +282,9 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
       {ladder && <p className="field__hint is-error" role="alert">{ladder}</p>}
       {preview && (
         <p className="sig-form__preview num">
-          1R = {fmtPrice(Math.abs(preview.entry - preview.sl))} ({((Math.abs(preview.entry - preview.sl) / preview.entry) * 100).toFixed(2)}%) ·{" "}
+          {preview.entry2 !== null &&
+            `ET1 ${fmtPrice(preview.entry)} · ET2 ${fmtPrice(preview.entry2)} (mỗi ET ½ vị thế) · Giá TB ${fmtPrice(avgEntry(preview))} · `}
+          1R = {fmtPrice(Math.abs(avgEntry(preview) - preview.sl))} ({((Math.abs(avgEntry(preview) - preview.sl) / avgEntry(preview)) * 100).toFixed(2)}%) ·{" "}
           {preview.tps.map((tp, i) => `TP${i + 1} ${fmtR(rAt(preview, tp), 2)}`).join(" · ")} · R:R kế hoạch 1 : {plannedRR(preview).toFixed(2)} · mỗi TP
           chốt {preview.tps.length === 1 ? "100%" : `1/${preview.tps.length}`}
         </p>
@@ -324,7 +348,8 @@ function ActiveCard({
           <span className="sig__type">{s.orderType === "market" ? "Market" : "Limit"}</span>
         </p>
         <p className="admin__sub num">
-          Entry {fmtPrice(s.entry)} · SL {fmtPrice(s.currentSl)}
+          {s.entry2 === null ? `Entry ${fmtPrice(s.entry)}` : `ET ${fmtPrice(s.entry)} / ${fmtPrice(s.entry2)} (khớp ${s.entriesFilled}/2)`} · SL{" "}
+          {fmtPrice(s.currentSl)}
           {s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.map(fmtPrice).join(" / ")}
         </p>
         <p className="admin__sub num">

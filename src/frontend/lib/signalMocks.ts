@@ -85,6 +85,8 @@ function build(): MockSet {
     const dir = side === "long" ? 1 : -1;
     const entry = snap(orderType === "limit" ? price - dir * risk * (0.2 + rand() * 0.4) : price, ref);
     const sl = snap(entry - dir * risk, ref);
+    // About half of the limit signals have a second, deeper entry between ET1 and the SL.
+    const entry2 = orderType === "limit" && rand() < 0.5 ? snap(entry - dir * risk * (0.3 + rand() * 0.3), ref) : null;
     const nTp = 1 + Math.floor(rand() * 3);
     const tps = Array.from({ length: nTp }, (_, k) => snap(entry + dir * risk * (k + 1) * (0.9 + rand() * 0.5), ref));
 
@@ -101,6 +103,8 @@ function build(): MockSet {
     const start: EngineState = {
       side,
       entry,
+      entry2,
+      entriesFilled: orderType === "market" ? 1 : 0,
       sl,
       tps,
       status: orderType === "market" ? "open" : "pending",
@@ -131,6 +135,8 @@ function build(): MockSet {
       side,
       orderType,
       entry,
+      entry2,
+      entriesFilled: state.entriesFilled,
       sl,
       currentSl: moves.length ? entry : sl,
       tps,

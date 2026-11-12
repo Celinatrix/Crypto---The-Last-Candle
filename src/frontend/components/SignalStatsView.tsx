@@ -20,7 +20,13 @@ const PAGE = 15;
 
 export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "warn" | "muted" | "info" } {
   if (s.status === "pending") return { label: "Chờ khớp", tone: "warn" };
-  if (s.status === "open") return { label: s.tpHits ? `Đang chạy · ${s.tpHits}/${s.tps.length} TP` : "Đang chạy", tone: "info" };
+  if (s.status === "open") {
+    const parts = [
+      ...(s.entry2 !== null && s.tpHits === 0 ? [`khớp ${s.entriesFilled}/2 ET`] : []),
+      ...(s.tpHits ? [`${s.tpHits}/${s.tps.length} TP`] : []),
+    ];
+    return { label: ["Đang chạy", ...parts].join(" · "), tone: "info" };
+  }
   if (s.status === "cancelled") {
     return { label: s.exit === "cancel_admin" ? "Đã huỷ" : s.exit === "cancel_sl" ? "Huỷ (chạm SL trước)" : "Huỷ (chạm TP1 trước)", tone: "muted" };
   }
@@ -133,7 +139,7 @@ export default function SignalStatsView({
               title="Đường vốn theo R"
               caption={
                 <>
-                  Lợi nhuận cộng dồn sau mỗi lệnh đóng, tính theo R (1R = khoảng cách Entry đến SL ban đầu), xếp theo thời điểm
+                  Lợi nhuận cộng dồn sau mỗi lệnh đóng, tính theo R (1R = khoảng cách từ Entry, hoặc giá trung bình nếu có 2 ET, đến SL ban đầu), xếp theo thời điểm
                   đóng. Không phụ thuộc vốn hay đòn bẩy. Nguồn giá: BingX, nến 1 phút.
                 </>
               }
@@ -298,7 +304,10 @@ function SignalRow({
         <td data-label="Lệnh">
           <span className={`sig__side is-${s.side}`}>{SIDE_LABEL[s.side]}</span> <span className="sig__type">{s.orderType === "market" ? "Market" : "Limit"}</span>
         </td>
-        <td data-label="Entry" className="is-num num">{fmtPrice(s.entry)}</td>
+        <td data-label="Entry" className="is-num num">
+          {fmtPrice(s.entry)}
+          {s.entry2 !== null && <> · {fmtPrice(s.entry2)}</>}
+        </td>
         <td data-label="SL" className="is-num num">
           {fmtPrice(s.currentSl)}
           {s.currentSl !== s.sl && <small className="sig__was"> (gốc {fmtPrice(s.sl)})</small>}
@@ -352,7 +361,7 @@ function SignalDetail({ s, loadCandles }: { s: Signal; loadCandles: (id: number)
           <span className="skeleton" style={{ height: 300 }} aria-label="Đang tải nến BingX" />
         )}
         <figcaption className="viz__caption">
-          Nét đứt: Entry (trắng), SL (cam), TP (xanh). Chấm tròn: thời điểm khớp lệnh, chạm TP/SL hoặc đóng tay. Nguồn: BingX.
+          Nét đứt: Entry hoặc ET1 và ET2 (trắng), SL (cam), TP (xanh). Chấm tròn: thời điểm khớp lệnh, chạm TP/SL hoặc đóng tay. Nguồn: BingX.
         </figcaption>
       </figure>
       <ol className="sig__timeline">

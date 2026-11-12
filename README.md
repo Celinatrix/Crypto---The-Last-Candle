@@ -52,6 +52,9 @@ Each one is scored automatically against BingX public 1-minute candles (`swap/v3
 The rules are in `src/shared/signals.ts`, which the server, the admin page and the mocks all share:
 
 - 1R = |entry − original SL|. Profit is counted in R, so capital and leverage do not matter.
+- A limit signal may have two entries (ET1, ET2), half the position each; 1R is then measured from their
+  average. ET2 sits between ET1 and the SL, so a stop-out always has both filled (−1R). An entry not
+  filled when TP1 is reached is dropped, and the TPs split what did fill.
 - The position is split evenly across the TPs. The SL stays put unless the admin moves it ("Dời SL").
 - Limit orders fill when a candle touches the entry. Reaching the SL or TP1 first cancels the signal, and
   cancelled signals are left out of the stats. Market orders fill at the posted entry.
@@ -62,7 +65,7 @@ The rules are in `src/shared/signals.ts`, which the server, the admin page and t
 
 Members who linked a UID see the section on the home page (`#signals`): KPI tiles, R equity curve,
 weekly wins/losses, R distribution, winrate by symbol and side, and a BingX candle chart per signal.
-Schema: `supabase/migrations/20261112000000_signals.sql`.
+Schema: `supabase/migrations/20261112000000_signals.sql`, then `20261112010000_signal_two_entries.sql`.
 
 ## Routes
 
