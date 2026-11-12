@@ -85,3 +85,24 @@ export function fmtDate(ms: number): string {
   const d = new Date(ms);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
+
+/** A market price with sensible decimals: 73,518.8 · 2,044.79 · 151.234 · 0.51234 */
+export function fmtPrice(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return value.toLocaleString("en-US", { maximumFractionDigits: digits });
+}
+
+/** 1.333 → "+1.33R", -1 → "−1.00R", 0 → "0.00R" */
+export function fmtR(value: number, digits = 2): string {
+  if (!Number.isFinite(value)) return "—";
+  const v = Math.round(value * 10 ** digits) / 10 ** digits;
+  const body = Math.abs(v).toFixed(digits);
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${body}R`;
+}
+
+/** 0.625 → "62.5%" */
+export function fmtPct(ratio: number, digits = 1): string {
+  return Number.isFinite(ratio) ? `${(ratio * 100).toFixed(digits)}%` : "—";
+}

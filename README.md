@@ -45,6 +45,25 @@ Defined in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) for the page and in th
   one-click unsubscribe link (`/api/unsubscribe`, also Gmail's own button). Manual checks with the cron
   header: `?preview=1`, `?dry=1`, `?test=you@gmail.com`.
 
+## Signal statistics
+
+The admin posts signals in `/admin` → **Tín hiệu** (symbol, Long/Short, Market/Limit, entry, SL, 1–3 TPs).
+Each one is scored automatically against BingX public 1-minute candles (`swap/v3/quote/klines`, no key).
+The rules are in `src/shared/signals.ts`, which the server, the admin page and the mocks all share:
+
+- 1R = |entry − original SL|. Profit is counted in R, so capital and leverage do not matter.
+- The position is split evenly across the TPs. The SL stays put unless the admin moves it ("Dời SL").
+- Limit orders fill when a candle touches the entry. Reaching the SL or TP1 first cancels the signal, and
+  cancelled signals are left out of the stats. Market orders fill at the posted entry.
+- Replay starts at the first full minute after the post. A candle that reaches both SL and TP counts as SL.
+- Win / loss / breakeven = total R above / below / equal to 0. Winrate = wins ÷ (wins + losses).
+- Signals are brought up to date when someone opens the page (at most once a minute per instance), and
+  `/api/cron/signals` (03:00 UTC) catches up every open signal daily.
+
+Members who linked a UID see the section on the home page (`#signals`): KPI tiles, R equity curve,
+weekly wins/losses, R distribution, winrate by symbol and side, and a BingX candle chart per signal.
+Schema: `supabase/migrations/20261112000000_signals.sql`.
+
 ## Routes
 
 | Route | Behaviour |
@@ -54,6 +73,9 @@ Defined in `src/frontend/lib/premium.ts` (`PREMIUM_RULE`) for the page and in th
 | `GET /api/me` | 401 `{ member: null }` without a valid session; otherwise `{ member, volume }`. |
 | `POST /api/auth/logout` | Revokes the session and clears the cookie. |
 | `GET /api/calendar` | This week's high-impact ForexFactory events (cached 15 min). |
+| `GET /api/signals` | Member session: every signal with its replayed outcome `{ signals, updatedAt }`. 401 otherwise. |
+| `GET /api/signals/candles?id=` | Member session: BingX candles around one signal, for its chart. |
+| `GET\|POST /api/admin/signals` | Admin: list (`?price=SYM` live price, `?candles=ID` chart); POST `create`, `move_sl`, `close`. |
 | `GET\|POST /api/unsubscribe?e=&t=` | Confirmation page / stop the 07:00 email. |
 | `GET /api/cron/*` | Vercel Cron only (`Authorization: Bearer $CRON_SECRET`). |
 

@@ -19,7 +19,7 @@ export interface Series {
   values: number[];
 }
 
-function useWidth() {
+export function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   useEffect(() => {
@@ -35,7 +35,7 @@ function useWidth() {
 }
 
 /** A round axis top and the step between its ticks. */
-function niceScale(max: number): { top: number; step: number } {
+export function niceScale(max: number): { top: number; step: number } {
   if (!(max > 0)) return { top: 1, step: 1 };
   const rough = max / 4;
   const power = 10 ** Math.floor(Math.log10(rough));
@@ -58,7 +58,7 @@ function columnPath(x: number, w: number, top: number, bottom: number, rounded: 
   return `M${x},${bottom}V${top + r}Q${x},${top} ${x + r},${top}H${x + w - r}Q${x + w},${top} ${x + w},${top + r}V${bottom}Z`;
 }
 
-function Legend({ series }: { series: Series[] }) {
+export function Legend({ series }: { series: Series[] }) {
   if (series.length < 2) return null;
   return (
     <ul className="viz__legend">

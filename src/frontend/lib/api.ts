@@ -1,6 +1,7 @@
 import { DEV_MOCKS } from "./env";
 
 import type { CalendarResponse, MeResponse, RegisterResult } from "@/shared/types";
+import type { SignalCandlesResponse, SignalsResponse } from "@/shared/signals";
 
 // Each mock branch repeats the inline NODE_ENV check so webpack can drop the
 // dynamic import (and the mock chunk) from production builds.
@@ -98,4 +99,29 @@ export async function fetchCalendar(signal?: AbortSignal): Promise<CalendarRespo
 export async function logout(): Promise<void> {
   if (process.env.NODE_ENV === "development" && DEV_MOCKS) return;
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+}
+
+/** Admin signals with their replayed outcomes. Throws "unauthorized" without a member session. */
+export async function fetchSignals(signal?: AbortSignal): Promise<SignalsResponse> {
+  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./signalMocks")).mockSignals();
+
+  const res = await fetch("/api/signals", { cache: "no-store", credentials: "same-origin", signal });
+  const body = await readJson(res);
+  if (res.status === 401) throw new Error("unauthorized");
+  if (!res.ok || !isRecord(body) || !Array.isArray(body.signals)) {
+    throw new Error(errorOf(body) ?? "Không tải được thống kê tín hiệu. Vui lòng thử lại.");
+  }
+  return body as unknown as SignalsResponse;
+}
+
+/** BingX candles around one signal, for its chart. */
+export async function fetchSignalCandles(id: number): Promise<SignalCandlesResponse> {
+  if (process.env.NODE_ENV === "development" && DEV_MOCKS) return (await import("./signalMocks")).mockSignalCandles(id);
+
+  const res = await fetch(`/api/signals/candles?id=${id}`, { cache: "no-store", credentials: "same-origin" });
+  const body = await readJson(res);
+  if (!res.ok || !isRecord(body) || !Array.isArray(body.candles)) {
+    throw new Error(errorOf(body) ?? "Không tải được giá từ BingX.");
+  }
+  return body as unknown as SignalCandlesResponse;
 }
