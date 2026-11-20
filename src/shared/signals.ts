@@ -18,6 +18,13 @@
  * - A signal is a win when its total R is above 0, a loss below 0, breakeven at 0.
  */
 
+/** The people who usually call signals in the group, offered first in the admin form. */
+export const KNOWN_CALLERS = ["Phương Thắng", "Thanh Kiệt"] as const;
+/** Label for signals without a recorded caller. */
+export const NO_CALLER = "Chưa ghi";
+/** A signal may be dated back to its chat message, at most this long ago. */
+export const MAX_BACKDATE_MS = 14 * 86_400_000;
+
 export type SignalSide = "long" | "short";
 export type SignalOrderType = "market" | "limit";
 export type SignalStatus = "pending" | "open" | "closed" | "cancelled";
@@ -51,7 +58,10 @@ export interface Signal {
   /** 1–3 take-profits, nearest first. */
   tps: number[];
   note: string | null;
+  /** Who called it in the group; null for signals posted before callers were recorded. */
+  caller: string | null;
   status: SignalStatus;
+  /** When it was called: the post time, or the earlier time of the chat message it came from. */
   createdAt: string;
   filledAt: string | null;
   closedAt: string | null;
@@ -343,6 +353,7 @@ export interface SignalStats {
   histogram: { from: number; to: number; count: number }[];
   bySymbol: GroupStats[];
   bySide: GroupStats[];
+  byCaller: GroupStats[];
 }
 
 const VN_OFFSET = 7 * 3_600_000;
@@ -463,5 +474,6 @@ export function computeStats(signals: Signal[]): SignalStats {
     histogram,
     bySymbol: groupBy(closed, (s) => s.symbol),
     bySide: groupBy(closed, (s) => s.side),
+    byCaller: groupBy(closed, (s) => s.caller ?? NO_CALLER),
   };
 }

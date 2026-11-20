@@ -8,6 +8,7 @@ import { vnDayKey, vnShortDate } from "@/shared/vnTime";
 import { weekOptions, weekRange } from "@/shared/weeklyReport";
 import {
   avgEntry,
+  KNOWN_CALLERS,
   ladderError,
   orderEntries,
   plannedRR,
@@ -216,6 +217,20 @@ function WeeklyReport({ signals, onSignedOut }: { signals: Signal[]; onSignedOut
 
 const priceText = (n: number | null | undefined) => (n == null ? "" : String(n));
 
+const VN_OFFSET_MS = 7 * 3_600_000;
+/** ISO time → "YYYY-MM-DDTHH:mm" in Vietnam time, for a datetime-local input. */
+const toVnInput = (iso: string | null | undefined) => (iso ? new Date(Date.parse(iso) + VN_OFFSET_MS).toISOString().slice(0, 16) : "");
+/** "YYYY-MM-DDTHH:mm" read as Vietnam time → ISO, or null when empty/invalid. */
+function fromVnInput(v: string): string | null {
+  const t = Date.parse(`${v}:00Z`);
+  return v && Number.isFinite(t) ? new Date(t - VN_OFFSET_MS).toISOString() : null;
+}
+/** "08:09 16/11" in Vietnam time. */
+const vnLabel = (iso: string) => {
+  const v = toVnInput(iso);
+  return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`;
+};
+
 function SignalForm({
   draft,
   onDone,
@@ -230,14 +245,17 @@ function SignalForm({
   const symbol = `${base}-USDT`;
   const [side, setSide] = useState<SignalSide>(draft?.side ?? "long");
   const [orderType, setOrderType] = useState<SignalOrderType>(draft?.orderType ?? "market");
-  const [entry, setEntry] = useState(priceText(draft ? draft.entry ?? (draft.orderType === "market" ? draft.livePrice : null) : null));
+  const [entry, setEntry] = useState(priceText(draft ? draft.entry ?? (draft.orderType === "market" ? draft.refPrice : null) : null));
   // Limit only: an optional second entry. Either order is accepted; the deeper one becomes ET2.
   const [entry2, setEntry2] = useState(priceText(draft?.entry2));
   const [sl, setSl] = useState(priceText(draft?.sl));
   const [tps, setTps] = useState([0, 1, 2].map((i) => priceText(draft?.tps[i])));
   const [note, setNote] = useState(draft?.note ?? "");
+  const [caller, setCaller] = useState(draft?.caller ?? "");
+  // Vietnam time of the chat message; empty = the signal counts from now.
+  const [postedAt, setPostedAt] = useState(toVnInput(draft?.postedAt));
   const [live, setLive] = useState<{ symbol: string; price: number } | null>(
-    draft?.livePrice ? { symbol: `${draft.base}-USDT`, price: draft.livePrice } : null,
+    draft?.refPrice && !draft.postedAt ? { symbol: `${draft.base}-USDT`, price: draft.refPrice } : null,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -279,7 +297,19 @@ function SignalForm({
     setBusy(true);
     setError(null);
     try {
-      const r = await post({ action: "create", symbol, side, orderType, entry: preview.entry, entry2: preview.entry2, sl: nums.sl, tps: nums.tps, note });
+      const r = await post({
+        action: "create",
+        symbol,
+        side,
+        orderType,
+        entry: preview.entry,
+        entry2: preview.entry2,
+        sl: nums.sl,
+        tps: nums.tps,
+        note,
+        caller: caller.trim() || null,
+        postedAt: fromVnInput(postedAt),
+      });
       if (r.status === 401) return onSignedOut();
       if (!r.ok) return setError(r.error ?? "Không đăng được tín hiệu.");
       setEntry("");
@@ -287,6 +317,7 @@ function SignalForm({
       setSl("");
       setTps(["", "", ""]);
       setNote("");
+      setPostedAt("");
       await onDone(`Đã đăng ${side === "long" ? "Long" : "Short"} ${base} | USDT.`);
     } catch {
       setError("Không kết nối được máy chủ. Vui lòng thử lại.");
@@ -379,6 +410,36 @@ function SignalForm({
         ))}
       </div>
 
+      <div className="sig-form__row">
+        <div className="field">
+          <label className="label" htmlFor="sig-caller">Người gọi lệnh</label>
+          <input
+            id="sig-caller"
+            className="input"
+            list="sig-callers"
+            maxLength={60}
+            value={caller}
+            onChange={(e) => setCaller(e.target.value)}
+            placeholder={KNOWN_CALLERS.join(" / ")}
+            autoComplete="off"
+          />
+          <datalist id="sig-callers">
+            {KNOWN_CALLERS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="sig-posted">
+            Giờ gọi lệnh<span className="sig__optional"> (giờ VN, để trống = bây giờ)</span>
+          </label>
+          <input id="sig-posted" className="input input--mono" type="datetime-local" value={postedAt} onChange={(e) => setPostedAt(e.target.value)} />
+          {postedAt && (
+            <p className="field__hint">Kết quả được chấm từ phút này. Lệnh Market cần Entry là giá lúc gọi, lệch quá 3% sẽ bị từ chối.</p>
+          )}
+        </div>
+      </div>
+
       <div className="field">
         <label className="label" htmlFor="sig-note">Ghi chú (tuỳ chọn, thành viên sẽ thấy)</label>
         <input id="sig-note" className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -458,7 +519,7 @@ function ActiveCard({
           {s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.map(fmtPrice).join(" / ")}
         </p>
         <p className="admin__sub num">
-          <span className={`admin__badge is-${status.tone}`}>{status.label}</span> · Đăng {fmtDateTimeShort(Date.parse(s.createdAt))}
+          <span className={`admin__badge is-${status.tone}`}>{status.label}</span> · {s.caller ? `${s.caller} gọi` : "Gọi"} {fmtDateTimeShort(Date.parse(s.createdAt))}
           {!pending && ` · Đã chốt ${fmtR(s.realizedR)}`}
         </p>
       </div>
@@ -684,7 +745,7 @@ function SignalImageReader({
           {result.signals.map((d, i) => {
             const key = `s${i}`;
             const state = states[key] ?? "new";
-            const entry = d.entry ?? (d.orderType === "market" ? d.livePrice : null);
+            const entry = d.entry ?? (d.orderType === "market" ? d.refPrice : null);
             const [et1, et2] = entry === null ? [NaN, null] : orderEntries(d.side, entry, d.entry2);
             const ladder = d.missing.length === 0 && d.sl !== null ? ladderError(d.side, et1, d.sl, d.tps, et2) : null;
             const canPost = d.missing.length === 0 && !ladder && state === "new";
@@ -695,9 +756,12 @@ function SignalImageReader({
                     {d.base} | USDT <span className={`sig__side is-${d.side}`}>{d.side === "long" ? "Long" : "Short"}</span>{" "}
                     <span className="sig__type">{d.orderType === "market" ? "Market" : "Limit"}</span>
                   </p>
+                  <p className="admin__sub">
+                    {d.caller ?? "Chưa rõ người gọi"} · {d.postedAt ? `gọi lúc ${vnLabel(d.postedAt)}` : "tính từ lúc đăng"}
+                  </p>
                   <p className="admin__sub num">
                     {d.entry === null && d.orderType === "market"
-                      ? `Entry: giá lúc đăng${d.livePrice ? ` (~${fmtPrice(d.livePrice)})` : ""}`
+                      ? `Entry: giá ${d.postedAt ? "lúc gọi" : "lúc đăng"}${d.refPrice ? ` (${d.postedAt ? "" : "~"}${fmtPrice(d.refPrice)})` : ""}`
                       : `Entry ${entry === null ? "—" : fmtPrice(entry)}${d.entry2 !== null ? ` / ${fmtPrice(d.entry2)}` : ""}`}
                     {" · "}SL {d.sl === null ? "—" : fmtPrice(d.sl)}
                     {" · "}TP {d.tps.length ? d.tps.map(fmtPrice).join(" / ") : "—"}
@@ -721,7 +785,19 @@ function SignalImageReader({
                         onClick={() =>
                           void act(
                             key,
-                            { action: "create", symbol: `${d.base}-USDT`, side: d.side, orderType: d.orderType, entry: et1, entry2: et2, sl: d.sl, tps: d.tps, note: d.note },
+                            {
+                              action: "create",
+                              symbol: `${d.base}-USDT`,
+                              side: d.side,
+                              orderType: d.orderType,
+                              entry: et1,
+                              entry2: et2,
+                              sl: d.sl,
+                              tps: d.tps,
+                              note: d.note,
+                              caller: d.caller,
+                              postedAt: d.postedAt,
+                            },
                             `Đã đăng ${d.side === "long" ? "Long" : "Short"} ${d.base} | USDT.`,
                           )
                         }

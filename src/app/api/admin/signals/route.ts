@@ -3,8 +3,9 @@
  *   GET  /api/admin/signals             every signal, replayed up to the last closed minute
  *   GET  /api/admin/signals?price=SYM   BingX last price for the form ({ price } or 404)
  *   GET  /api/admin/signals?candles=ID  BingX candles around one signal, for its chart
- *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, entry2?, sl, tps, note }
- *                                       (entry2: optional second entry, limit only)
+ *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, entry2?, sl, tps, note, caller?, postedAt? }
+ *                                       (entry2: optional second entry, limit only; postedAt: ISO time of
+ *                                       the chat message, up to 14 days back, null = now)
  *                                       { action: "move_sl", id, price }
  *                                       { action: "close", id, price }   (a pending signal is cancelled)
  * Signed-in admins only; POST also needs a same-origin request.
@@ -81,7 +82,9 @@ export async function POST(req: NextRequest) {
           tps.length < 1 ||
           tps.length > 3 ||
           !tps.every(isPrice) ||
-          (b.note !== undefined && b.note !== null && typeof b.note !== "string")
+          (b.note !== undefined && b.note !== null && typeof b.note !== "string") ||
+          (b.caller !== undefined && b.caller !== null && typeof b.caller !== "string") ||
+          (b.postedAt !== undefined && b.postedAt !== null && (typeof b.postedAt !== "string" || !Number.isFinite(Date.parse(b.postedAt))))
         ) {
           return fail("Dữ liệu không hợp lệ.", 400);
         }
@@ -96,6 +99,8 @@ export async function POST(req: NextRequest) {
             sl: b.sl,
             tps: tps as number[],
             note,
+            caller: typeof b.caller === "string" ? b.caller : null,
+            postedAt: typeof b.postedAt === "string" ? Date.parse(b.postedAt) : null,
           },
           admin,
         );
