@@ -3631,3 +3631,8 @@ h2.tabs__tab {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Live BingX price in the signal list */
+.sig__live-wait {
+  color: var(--faint);
+}

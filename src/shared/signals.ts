@@ -229,6 +229,20 @@ export function bestPct(s: BestInput & Pick<EngineState, "realizedPct">): number
   return s.realizedPct + pctOf(s, remainingOf(s), filledOf(s).avg, s.bestPrice);
 }
 
+/**
+ * What an open signal would total if what is still open closed at `price` now: booked plus floating,
+ * in R (null without SL) and in percent. Null unless the signal is open.
+ */
+export function openResultAt(
+  s: Plan & Pick<EngineState, "entriesFilled" | "tps" | "tpHits" | "status" | "realizedR" | "realizedPct">,
+  price: number,
+): { r: number | null; pct: number } | null {
+  if (s.status !== "open" || !(price > 0)) return null;
+  const { avg } = filledOf(s);
+  const qty = remainingOf(s);
+  return { r: s.sl === null ? null : s.realizedR + pnl(s, qty, avg, price), pct: s.realizedPct + pctOf(s, qty, avg, price) };
+}
+
 /** Two entries in either order → [ET1 nearer the TPs, ET2 nearer the SL]. */
 export function orderEntries(side: SignalSide, a: number, b: number | null): [number, number | null] {
   if (b === null) return [a, null];
