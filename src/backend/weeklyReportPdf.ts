@@ -252,7 +252,11 @@ export async function buildWeeklyReportPdf(sum: WeekSummary, fonts: ReportFonts,
   tiles(c, [
     { label: "Chạm TP", value: String(sum.anyTp), sub: `${sum.allTp} lệnh chạm hết TP`, color: sum.anyTp ? WIN : INK },
     { label: "Chạm SL", value: String(sum.sl), sub: `${sum.slAfterTp} lệnh đã chạm TP trước đó`, color: sum.sl ? LOSS : INK },
-    { label: "Đóng tay", value: String(sum.manual), sub: "Admin chốt theo thông báo" },
+    {
+      label: "Đóng tay / giá tốt nhất",
+      value: String(sum.manual + sum.best),
+      sub: sum.best ? `${sum.best} lệnh không TP chốt theo giá tốt nhất` : "Admin chốt theo thông báo",
+    },
     { label: "Đã đóng", value: String(sum.closed), sub: "Tính vào winrate và R" },
   ]);
 

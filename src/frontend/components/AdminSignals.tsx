@@ -8,6 +8,8 @@ import { vnDayKey, vnShortDate } from "@/shared/vnTime";
 import { weekOptions, weekRange } from "@/shared/weeklyReport";
 import {
   avgEntry,
+  BEST_MIN_R,
+  bestR,
   KNOWN_CALLERS,
   ladderError,
   orderEntries,
@@ -517,6 +519,8 @@ function ActiveCard({
   const canSetTps = s.tpHits === 0;
   const closePrice = parsePrice(closeInput);
   const pending = s.status === "pending";
+  const best = bestR(s);
+  const [confirmBest, setConfirmBest] = useState(false);
 
   return (
     <li className="admin__card sig-card">
@@ -534,8 +538,30 @@ function ActiveCard({
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span> · {s.caller ? `${s.caller} gọi` : "Gọi"} {fmtDateTimeShort(Date.parse(s.createdAt))}
           {!pending && ` · Đã chốt ${fmtR(s.realizedR)}`}
         </p>
+        {s.status === "open" && s.tps.length === 0 && (
+          <p className="admin__sub num">
+            {best === null
+              ? "Chưa có TP · giá tốt nhất tính từ nến sau khi khớp"
+              : `Chưa có TP · giá tốt nhất ${fmtPrice(s.bestPrice!)} = ${fmtR(best)} · chạm SL: ${best >= BEST_MIN_R ? `chốt ${fmtR(best)}` : `−1R (cần ≥ ${BEST_MIN_R}R)`}`}
+          </p>
+        )}
       </div>
       <div className="sig-card__actions">
+        {s.status === "open" && s.tps.length === 0 && (
+          <button
+            type="button"
+            className={`btn btn--sm ${confirmBest ? "admin__btn-danger" : "btn--ghost"}`}
+            disabled={busy || best === null}
+            onBlur={() => setConfirmBest(false)}
+            onClick={() => {
+              if (!confirmBest) return setConfirmBest(true);
+              setConfirmBest(false);
+              void run({ action: "close_best", id: s.id }, `Đã chốt #${s.id} theo giá tốt nhất ${fmtPrice(s.bestPrice!)} (${fmtR(best!)}).`);
+            }}
+          >
+            {confirmBest ? "Bấm lần nữa để xác nhận" : `Chốt theo giá tốt nhất${best === null ? "" : ` (${fmtR(best)})`}`}
+          </button>
+        )}
         {canSetTps && (
           <div className="sig-form__inline">
             <input
