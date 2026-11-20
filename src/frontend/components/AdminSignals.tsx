@@ -220,16 +220,34 @@ function WeeklyReport({ signals, onSignedOut }: { signals: Signal[]; onSignedOut
 const priceText = (n: number | null | undefined) => (n == null ? "" : String(n));
 
 const VN_OFFSET_MS = 7 * 3_600_000;
-/** ISO time → "YYYY-MM-DDTHH:mm" in Vietnam time, for a datetime-local input. */
-const toVnInput = (iso: string | null | undefined) => (iso ? new Date(Date.parse(iso) + VN_OFFSET_MS).toISOString().slice(0, 16) : "");
-/** "YYYY-MM-DDTHH:mm" read as Vietnam time → ISO, or null when empty/invalid. */
-function fromVnInput(v: string): string | null {
-  const t = Date.parse(`${v}:00Z`);
-  return v && Number.isFinite(t) ? new Date(t - VN_OFFSET_MS).toISOString() : null;
+/** ISO time → "YYYY-MM-DDTHH:mm" in Vietnam time. */
+const vnIso = (iso: string) => new Date(Date.parse(iso) + VN_OFFSET_MS).toISOString().slice(0, 16);
+/** ISO time → "16/11/2026 08:09" (Vietnam time, 24-hour), the call-time field's format. */
+const toVnInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const v = vnIso(iso);
+  return `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)} ${v.slice(11, 16)}`;
+};
+/**
+ * The call-time field, read as Vietnam time (24-hour) → ISO. Accepts "16/11/2026 08:09", "16/11 8:09"
+ * (this year) and "08:09 16/11". Empty → null (now); anything else → "invalid".
+ */
+function fromVnInput(v: string): string | null | "invalid" {
+  const t = v.trim();
+  if (!t) return null;
+  const date = t.match(/(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}))?/);
+  const time = t.replace(date?.[0] ?? "", " ").match(/(\d{1,2})[:hg](\d{2})/i);
+  if (!date || !time) return "invalid";
+  const [d, mo, y] = [Number(date[1]), Number(date[2]), date[3] ? Number(date[3]) : new Date(Date.now() + VN_OFFSET_MS).getUTCFullYear()];
+  const [h, mi] = [Number(time[1]), Number(time[2])];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return "invalid";
+  const ms = Date.UTC(y, mo - 1, d, h, mi);
+  if (new Date(ms).getUTCDate() !== d) return "invalid"; // 31/11 and the like
+  return new Date(ms - VN_OFFSET_MS).toISOString();
 }
 /** "08:09 16/11" in Vietnam time. */
 const vnLabel = (iso: string) => {
-  const v = toVnInput(iso);
+  const v = vnIso(iso);
   return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`;
 };
 
@@ -278,7 +296,8 @@ function SignalForm({
     nums.tps.length === filledTps.length;
   const [et1, et2] = orderEntries(side, nums.entry, nums.entry2);
   const ladder = ready ? ladderError(side, et1, nums.sl, nums.tps, et2) : null;
-  const preview = ready && !ladder ? { side, entry: et1, entry2: et2, sl: nums.sl, tps: nums.tps } : null;
+  const callAt = fromVnInput(postedAt);
+  const preview = ready && !ladder && callAt !== "invalid" ? { side, entry: et1, entry2: et2, sl: nums.sl, tps: nums.tps } : null;
 
   async function fetchLive() {
     setError(null);
@@ -309,7 +328,7 @@ function SignalForm({
         tps: nums.tps,
         note,
         caller: caller.trim() || null,
-        postedAt: fromVnInput(postedAt),
+        postedAt: callAt === "invalid" ? null : callAt,
       });
       if (r.status === 401) return onSignedOut();
       if (!r.ok) return setError(r.error ?? "Không đăng được tín hiệu.");
@@ -435,12 +454,25 @@ function SignalForm({
         </div>
         <div className="field">
           <label className="label" htmlFor="sig-posted">
-            Giờ gọi lệnh<span className="sig__optional"> (giờ VN, để trống = bây giờ)</span>
+            Giờ gọi lệnh<span className="sig__optional"> (giờ VN 00:00–23:59, để trống = bây giờ)</span>
           </label>
-          <input id="sig-posted" className="input input--mono" type="datetime-local" value={postedAt} onChange={(e) => setPostedAt(e.target.value)} />
-          {postedAt && (
-            <p className="field__hint">Kết quả được chấm từ phút này. Lệnh Market cần Entry là giá lúc gọi, lệch quá 3% sẽ bị từ chối.</p>
-          )}
+          <input
+            id="sig-posted"
+            className="input input--mono"
+            inputMode="numeric"
+            placeholder="16/11/2026 08:09"
+            autoComplete="off"
+            value={postedAt}
+            onChange={(e) => setPostedAt(e.target.value)}
+            aria-invalid={callAt === "invalid"}
+          />
+          {callAt === "invalid" ? (
+            <p className="field__hint is-error">Nhập theo dạng ngày/tháng/năm giờ:phút, ví dụ 16/11/2026 20:15.</p>
+          ) : callAt ? (
+            <p className="field__hint">
+              Gọi lúc {vnLabel(callAt)}/{vnIso(callAt).slice(0, 4)}. Kết quả được chấm từ phút này; lệnh Market cần Entry là giá lúc gọi, lệch quá 3% sẽ bị từ chối.
+            </p>
+          ) : null}
         </div>
       </div>
 
