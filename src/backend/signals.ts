@@ -49,14 +49,17 @@ interface RawKline {
 async function bingx<T>(path: string): Promise<{ code: number; msg?: string; data?: T }> {
   let last: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
+    if (attempt) await new Promise((r) => setTimeout(r, 1000 * attempt));
     try {
       const res = await fetch(`${BASE}${path}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
       if (res.status >= 500 || res.status === 429) throw new Error(`BingX ${path.split("?")[0]}: HTTP ${res.status}`);
       if (!res.ok) throw Object.assign(new Error(`BingX ${path.split("?")[0]}: HTTP ${res.status}`), { final: true });
       const body = (await res.json()) as { code: number; msg?: string; data?: T };
-      // code 0 without data is a hiccup; a non-zero code is an answer (unknown or offline symbol, …).
-      if (body.code === 0 && body.data === undefined) throw new Error(`BingX ${path.split("?")[0]}: empty reply`);
+      // code 0 without data, or 100410 ("try again later", rate limit), is a hiccup; any other
+      // non-zero code is an answer (unknown or offline symbol, …).
+      if ((body.code === 0 && body.data === undefined) || body.code === 100410) {
+        throw new Error(`BingX ${path.split("?")[0]}: code ${body.code}, try again`);
+      }
       return body;
     } catch (err) {
       if ((err as { final?: boolean }).final) throw err;
