@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnsChart, Figure } from "@/frontend/components/AdminCharts";
 import { CandleChart, EquityChart, EVENT_LABEL, RHistogram, WinrateBars } from "@/frontend/components/SignalCharts";
 import { fmtDateTimeShort, fmtDayFull, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { computeStats, NO_CALLER, plannedRR, statusOf, symbolLabel, type Signal, type SignalCandlesResponse } from "@/shared/signals";
+import { computeStats, fmtResult, NO_CALLER, plannedRR, signalOutcome, statusOf, symbolLabel, type Signal, type SignalCandlesResponse } from "@/shared/signals";
 
 type Period = "30" | "90" | "180" | "all";
 type SideFilter = "all" | "long" | "short";
@@ -58,7 +58,14 @@ export default function SignalStatsView({
       value: st.winrate === null ? "—" : fmtPct(st.winrate),
       sub: `${st.wins} thắng · ${st.losses} thua${st.breakeven ? ` · ${st.breakeven} hoà` : ""}`,
     },
-    { label: "Tổng lợi nhuận", value: fmtR(st.totalR), sub: `${st.closed} lệnh đã đóng`, tone: st.totalR > 0 ? "ok" : st.totalR < 0 ? "danger" : undefined },
+    {
+      label: "Tổng lợi nhuận",
+      value: fmtR(st.totalR),
+      sub: st.pctClosed
+        ? `${st.closed - st.pctClosed} lệnh có SL · ${st.pctClosed} lệnh không SL: ${st.totalPct >= 0 ? "+" : "−"}${Math.abs(st.totalPct).toFixed(2)}%`
+        : `${st.closed} lệnh đã đóng`,
+      tone: st.totalR > 0 ? "ok" : st.totalR < 0 ? "danger" : undefined,
+    },
     {
       label: "R:R thực tế",
       value: st.realizedRR === null ? "—" : `1 : ${st.realizedRR.toFixed(2)}`,
@@ -318,16 +325,19 @@ function SignalRow({
           {s.entry2 !== null && <> · {fmtPrice(s.entry2)}</>}
         </td>
         <td data-label="SL" className="is-num num">
-          {fmtPrice(s.currentSl)}
-          {s.currentSl !== s.sl && <small className="sig__was"> (gốc {fmtPrice(s.sl)})</small>}
+          {s.currentSl === null ? "—" : fmtPrice(s.currentSl)}
+          {s.sl !== null && s.currentSl !== s.sl && <small className="sig__was"> (gốc {fmtPrice(s.sl)})</small>}
         </td>
         <td data-label="TP" className="is-num num">{s.tps.length ? s.tps.map(fmtPrice).join(" · ") : "—"}</td>
-        <td data-label="R:R" className="is-num num">{s.tps.length ? `1 : ${plannedRR(s)!.toFixed(2)}` : "—"}</td>
+        <td data-label="R:R" className="is-num num">{plannedRR(s) === null ? "—" : `1 : ${plannedRR(s)!.toFixed(2)}`}</td>
         <td data-label="Trạng thái">
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span>
         </td>
-        <td data-label="Kết quả" className={`is-num num${finished ? (s.realizedR > 0 ? " is-ok" : s.realizedR < 0 ? " is-danger" : "") : ""}`}>
-          {s.status === "cancelled" || s.status === "pending" ? "—" : finished ? fmtR(s.realizedR) : `${fmtR(s.realizedR)} đã chốt`}
+        <td
+          data-label="Kết quả"
+          className={`is-num num${finished ? (signalOutcome(s) === "win" ? " is-ok" : signalOutcome(s) === "loss" ? " is-danger" : "") : ""}`}
+        >
+          {s.status === "cancelled" || s.status === "pending" ? "—" : finished ? fmtResult(s) : `${fmtResult(s)} đã chốt`}
         </td>
       </tr>
       {open && (

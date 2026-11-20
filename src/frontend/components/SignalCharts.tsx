@@ -286,8 +286,10 @@ export function CandleChart({ signal, candles, interval }: { signal: Signal; can
   const levels = [
     { key: "entry", label: signal.entry2 === null ? "Entry" : "ET1", price: signal.entry, color: "rgba(255,255,255,0.75)", dash: "6 4" },
     ...(signal.entry2 !== null ? [{ key: "entry2", label: "ET2", price: signal.entry2, color: "rgba(255,255,255,0.75)", dash: "2 3" }] : []),
-    { key: "sl", label: "SL", price: signal.sl, color: LOSS, dash: "6 4" },
-    ...(signal.currentSl !== signal.sl ? [{ key: "sl2", label: "SL mới", price: signal.currentSl, color: LOSS, dash: "2 3" }] : []),
+    ...(signal.sl !== null ? [{ key: "sl", label: "SL", price: signal.sl, color: LOSS, dash: "6 4" }] : []),
+    ...(signal.currentSl !== null && signal.currentSl !== signal.sl
+      ? [{ key: "sl2", label: "SL mới", price: signal.currentSl, color: LOSS, dash: "2 3" }]
+      : []),
     ...signal.tps.map((tp, i) => ({ key: `tp${i}`, label: `TP${i + 1}`, price: tp, color: WIN, dash: "6 4" })),
   ];
   const lows = [...candles.map((c) => c.low), ...levels.map((l) => l.price)];
