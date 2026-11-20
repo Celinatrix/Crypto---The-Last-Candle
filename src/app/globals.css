@@ -3539,3 +3539,95 @@ h2.tabs__tab {
   letter-spacing: 0.04em;
   user-select: none;
 }
+
+/* Signals from a screenshot (admin) */
+.sig-read {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sig-read__drop {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.sig-read__drop:hover,
+.sig-read__drop:focus-visible,
+.sig-read__drop.is-over {
+  border-color: var(--ice);
+  background: rgba(169, 220, 236, 0.06);
+  outline: none;
+}
+.sig-read__title {
+  margin: 0;
+  font-weight: 600;
+}
+.sig-read__sub,
+.sig-read__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.sig-read__hint {
+  margin-bottom: 12px;
+}
+.sig-read__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sig-read__thumbs img {
+  height: 64px;
+  max-width: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.sig-read__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sig-read__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+}
+.sig-read__item.is-done {
+  opacity: 0.6;
+}
+.sig-read__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.sig-read__body p {
+  margin: 0;
+}
+.sig-read__warn {
+  color: var(--warn);
+  font-size: 13px;
+}
+.sig-read__warn.is-error {
+  color: var(--danger);
+}
+.sig-read__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

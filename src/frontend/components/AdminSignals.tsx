@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { SignalDraft, SignalImageResult } from "@/backend/signalImage";
 import SignalStatsView, { statusOf } from "@/frontend/components/SignalStatsView";
 import { fmtDateTimeShort, fmtPrice, fmtR } from "@/frontend/lib/format";
 import { vnDayKey, vnShortDate } from "@/shared/vnTime";
@@ -74,6 +75,9 @@ export default function AdminSignals({ onSignedOut }: { onSignedOut: () => void 
   }, [load]);
 
   const active = useMemo(() => (data?.signals ?? []).filter((s) => s.status === "pending" || s.status === "open"), [data]);
+  // A draft read from a screenshot, loaded into the form; the key remounts the form with it.
+  const [formDraft, setFormDraft] = useState<{ key: number; draft: SignalDraft } | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="admin__stats-page">
@@ -87,13 +91,28 @@ export default function AdminSignals({ onSignedOut }: { onSignedOut: () => void 
             </p>
           </div>
         </div>
-        <SignalForm
-          onDone={async (text) => {
-            setNotice({ tone: "ok", text });
-            await load();
-          }}
+        <SignalImageReader
+          active={active}
+          onNotice={setNotice}
+          reload={load}
           onSignedOut={onSignedOut}
+          onEdit={(draft) => {
+            setFormDraft({ key: Date.now(), draft });
+            formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
         />
+        <div ref={formRef}>
+          <SignalForm
+            key={formDraft?.key ?? 0}
+            draft={formDraft?.draft ?? null}
+            onDone={async (text) => {
+              setFormDraft(null);
+              setNotice({ tone: "ok", text });
+              await load();
+            }}
+            onSignedOut={onSignedOut}
+          />
+        </div>
       </section>
 
       {notice && (
@@ -195,19 +214,31 @@ function WeeklyReport({ signals, onSignedOut }: { signals: Signal[]; onSignedOut
   );
 }
 
-function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise<void>; onSignedOut: () => void }) {
+const priceText = (n: number | null | undefined) => (n == null ? "" : String(n));
+
+function SignalForm({
+  draft,
+  onDone,
+  onSignedOut,
+}: {
+  draft: SignalDraft | null;
+  onDone: (text: string) => Promise<void>;
+  onSignedOut: () => void;
+}) {
   // Only the base coin is typed; the quote is always USDT (BingX USDT-M perpetuals).
-  const [base, setBase] = useState("BTC");
+  const [base, setBase] = useState(draft?.base || "BTC");
   const symbol = `${base}-USDT`;
-  const [side, setSide] = useState<SignalSide>("long");
-  const [orderType, setOrderType] = useState<SignalOrderType>("market");
-  const [entry, setEntry] = useState("");
+  const [side, setSide] = useState<SignalSide>(draft?.side ?? "long");
+  const [orderType, setOrderType] = useState<SignalOrderType>(draft?.orderType ?? "market");
+  const [entry, setEntry] = useState(priceText(draft ? draft.entry ?? (draft.orderType === "market" ? draft.livePrice : null) : null));
   // Limit only: an optional second entry. Either order is accepted; the deeper one becomes ET2.
-  const [entry2, setEntry2] = useState("");
-  const [sl, setSl] = useState("");
-  const [tps, setTps] = useState(["", "", ""]);
-  const [note, setNote] = useState("");
-  const [live, setLive] = useState<{ symbol: string; price: number } | null>(null);
+  const [entry2, setEntry2] = useState(priceText(draft?.entry2));
+  const [sl, setSl] = useState(priceText(draft?.sl));
+  const [tps, setTps] = useState([0, 1, 2].map((i) => priceText(draft?.tps[i])));
+  const [note, setNote] = useState(draft?.note ?? "");
+  const [live, setLive] = useState<{ symbol: string; price: number } | null>(
+    draft?.livePrice ? { symbol: `${draft.base}-USDT`, price: draft.livePrice } : null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -276,6 +307,11 @@ function SignalForm({ onDone, onSignedOut }: { onDone: (text: string) => Promise
 
   return (
     <form className="form sig-form liquid-glass" noValidate onSubmit={submit}>
+      {draft && (
+        <p className="sig-read__hint">
+          Đã điền từ ảnh{draft.missing.length > 0 && <> · còn thiếu <b>{draft.missing.join(", ")}</b></>}. Kiểm tra rồi bấm Đăng tín hiệu.
+        </p>
+      )}
       <div className="sig-form__row">
         <div className="field">
           <label className="label" htmlFor="sig-symbol">Cặp coin (BingX)</label>
@@ -467,5 +503,277 @@ function ActiveCard({
         </div>
       </div>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Signals from a screenshot: paste (Ctrl+V), drop or pick images; Claude reads them into drafts.
+// ---------------------------------------------------------------------------------------------
+
+const MAX_IMAGES = 4;
+/** Longest side sent to the server; enough to read chat text, small enough for the request limit. */
+const MAX_SIDE = 1600;
+
+/** Shrinks an image file to a JPEG and returns its base64. */
+async function toJpegBase64(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.88).split(",")[1] ?? "";
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+type DraftState = "new" | "busy" | "done";
+
+function SignalImageReader({
+  active,
+  onNotice,
+  reload,
+  onSignedOut,
+  onEdit,
+}: {
+  active: Signal[];
+  onNotice: (n: Notice) => void;
+  reload: () => Promise<void>;
+  onSignedOut: () => void;
+  onEdit: (d: SignalDraft) => void;
+}) {
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<SignalImageResult | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [states, setStates] = useState<Record<string, DraftState>>({});
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const read = useCallback(
+    async (files: File[]) => {
+      const images = files.filter((f) => f.type.startsWith("image/")).slice(0, MAX_IMAGES);
+      if (images.length === 0) return;
+      setReading(true);
+      setError(null);
+      setResult(null);
+      setStates({});
+      setPreviews(images.map((f) => URL.createObjectURL(f)));
+      try {
+        const payload = await Promise.all(images.map(async (f) => ({ mediaType: "image/jpeg", data: await toJpegBase64(f) })));
+        const res = await fetch("/api/admin/signals/read-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ images: payload }),
+        });
+        if (res.status === 401) return onSignedOut();
+        const body = (await res.json().catch(() => ({}))) as Partial<SignalImageResult> & { error?: string };
+        if (!res.ok) return setError(body.error ?? "Không đọc được ảnh.");
+        const r: SignalImageResult = { signals: body.signals ?? [], slMoves: body.slMoves ?? [], unreadable: body.unreadable ?? null };
+        setResult(r);
+        if (r.signals.length === 0 && r.slMoves.length === 0) setError(r.unreadable ?? "Không thấy tín hiệu nào trong ảnh.");
+      } catch {
+        setError("Không đọc được ảnh. Vui lòng thử lại.");
+      } finally {
+        setReading(false);
+      }
+    },
+    [onSignedOut],
+  );
+
+  // Ctrl+V anywhere on the page; a paste without an image (normal text) is left alone.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+      if (files.length === 0) return;
+      e.preventDefault();
+      void read(files);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [read]);
+
+  // Free the thumbnails when they are replaced or the tab closes.
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+
+  async function act(key: string, body: object, done: string) {
+    setStates((s) => ({ ...s, [key]: "busy" }));
+    onNotice(null);
+    try {
+      const r = await post(body);
+      if (r.status === 401) return onSignedOut();
+      if (!r.ok) {
+        setStates((s) => ({ ...s, [key]: "new" }));
+        return onNotice({ tone: "danger", text: r.error ?? "Đã có lỗi xảy ra." });
+      }
+      setStates((s) => ({ ...s, [key]: "done" }));
+      onNotice({ tone: "ok", text: done });
+      await reload();
+    } catch {
+      setStates((s) => ({ ...s, [key]: "new" }));
+      onNotice({ tone: "danger", text: "Không kết nối được máy chủ. Vui lòng thử lại." });
+    }
+  }
+
+  const found = result && (result.signals.length > 0 || result.slMoves.length > 0);
+
+  return (
+    <div className="sig-read">
+      <div
+        className={`sig-read__drop${dragging ? " is-over" : ""}`}
+        role="button"
+        tabIndex={0}
+        aria-label="Dán, kéo thả hoặc chọn ảnh tín hiệu"
+        aria-busy={reading}
+        onClick={() => fileInput.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInput.current?.click();
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          void read(Array.from(e.dataTransfer.files));
+        }}
+      >
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            void read(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
+        <p className="sig-read__title">{reading ? "Đang đọc ảnh…" : "Đăng nhanh từ ảnh"}</p>
+        {!reading && (
+          <p className="sig-read__sub">Ctrl+V để dán ảnh chụp tin nhắn, hoặc kéo thả / bấm để chọn (tối đa {MAX_IMAGES} ảnh).</p>
+        )}
+        {previews.length > 0 && (
+          <div className="sig-read__thumbs">
+            {previews.map((u) => (
+              <img key={u} src={u} alt="" />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {error && <div className="alert alert--danger" role="alert">{error}</div>}
+
+      {found && (
+        <ul className="sig-read__list">
+          {result.signals.map((d, i) => {
+            const key = `s${i}`;
+            const state = states[key] ?? "new";
+            const entry = d.entry ?? (d.orderType === "market" ? d.livePrice : null);
+            const [et1, et2] = entry === null ? [NaN, null] : orderEntries(d.side, entry, d.entry2);
+            const ladder = d.missing.length === 0 && d.sl !== null ? ladderError(d.side, et1, d.sl, d.tps, et2) : null;
+            const canPost = d.missing.length === 0 && !ladder && state === "new";
+            return (
+              <li key={key} className={`sig-read__item${state === "done" ? " is-done" : ""}`}>
+                <div className="sig-read__body">
+                  <p className="admin__uid num">
+                    {d.base} | USDT <span className={`sig__side is-${d.side}`}>{d.side === "long" ? "Long" : "Short"}</span>{" "}
+                    <span className="sig__type">{d.orderType === "market" ? "Market" : "Limit"}</span>
+                  </p>
+                  <p className="admin__sub num">
+                    {d.entry === null && d.orderType === "market"
+                      ? `Entry: giá lúc đăng${d.livePrice ? ` (~${fmtPrice(d.livePrice)})` : ""}`
+                      : `Entry ${entry === null ? "—" : fmtPrice(entry)}${d.entry2 !== null ? ` / ${fmtPrice(d.entry2)}` : ""}`}
+                    {" · "}SL {d.sl === null ? "—" : fmtPrice(d.sl)}
+                    {" · "}TP {d.tps.length ? d.tps.map(fmtPrice).join(" / ") : "—"}
+                  </p>
+                  {d.note && <p className="admin__sub">Ghi chú: {d.note}</p>}
+                  {d.missing.length > 0 && <p className="sig-read__warn is-error">Thiếu {d.missing.join(", ")}: bấm “Sửa trong form” để điền.</p>}
+                  {ladder && <p className="sig-read__warn is-error">{ladder}</p>}
+                  {d.warnings.map((w) => (
+                    <p key={w} className="sig-read__warn">{w}</p>
+                  ))}
+                </div>
+                <div className="sig-read__actions">
+                  {state === "done" ? (
+                    <span className="admin__badge is-ok">Đã đăng</span>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        disabled={!canPost}
+                        onClick={() =>
+                          void act(
+                            key,
+                            { action: "create", symbol: `${d.base}-USDT`, side: d.side, orderType: d.orderType, entry: et1, entry2: et2, sl: d.sl, tps: d.tps, note: d.note },
+                            `Đã đăng ${d.side === "long" ? "Long" : "Short"} ${d.base} | USDT.`,
+                          )
+                        }
+                      >
+                        {state === "busy" ? "Đang đăng…" : "Đăng"}
+                      </button>
+                      <button type="button" className="btn btn--ghost btn--sm" disabled={state === "busy"} onClick={() => onEdit(d)}>
+                        Sửa trong form
+                      </button>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+
+          {result.slMoves.map((m, i) => {
+            const matches = active.filter((s) => s.symbol === `${m.base}-USDT`);
+            return (
+              <li key={`m${i}`} className="sig-read__item">
+                <div className="sig-read__body">
+                  <p className="admin__uid num">Dời SL {m.base} | USDT → {fmtPrice(m.price)}</p>
+                  {matches.length === 0 && <p className="sig-read__warn is-error">Không có lệnh {m.base} nào đang chạy hoặc chờ khớp.</p>}
+                  {m.warnings.map((w) => (
+                    <p key={w} className="sig-read__warn">{w}</p>
+                  ))}
+                </div>
+                <div className="sig-read__actions">
+                  {matches.map((s) => {
+                    const key = `m${i}-${s.id}`;
+                    const state = states[key] ?? "new";
+                    return state === "done" ? (
+                      <span key={key} className="admin__badge is-ok">Đã dời #{s.id}</span>
+                    ) : (
+                      <button
+                        key={key}
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        disabled={state === "busy"}
+                        onClick={() => void act(key, { action: "move_sl", id: s.id, price: m.price }, `Đã dời SL #${s.id} về ${fmtPrice(m.price)}.`)}
+                      >
+                        {state === "busy" ? "Đang dời…" : `Dời SL #${s.id} (${s.side === "long" ? "Long" : "Short"})`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {found && result.unreadable && <p className="admin__hint">{result.unreadable}</p>}
+    </div>
   );
 }
