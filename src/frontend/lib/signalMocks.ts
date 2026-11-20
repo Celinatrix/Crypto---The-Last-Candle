@@ -141,6 +141,7 @@ function build(): MockSet {
       currentSl: moves.length ? entry : sl,
       tps,
       note: i % 9 === 0 ? "Theo cấu trúc khung H4, chờ phá vùng tích luỹ." : null,
+      caller: i % 3 === 0 ? "Thanh Kiệt" : "Phương Thắng",
       status: state.status,
       createdAt: new Date(createdAt).toISOString(),
       filledAt: state.filledAt === null ? null : new Date(state.filledAt).toISOString(),

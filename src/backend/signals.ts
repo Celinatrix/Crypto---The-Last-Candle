@@ -11,6 +11,7 @@ import {
   advance,
   closeByHand,
   ladderError,
+  MAX_BACKDATE_MS,
   MINUTE_MS,
   orderEntries,
   type CandlePoint,
@@ -97,6 +98,7 @@ interface SignalRow {
   current_sl: number;
   tps: number[];
   note: string | null;
+  caller: string | null;
   status: SignalStatus;
   tp_hits: number;
   realized_r: number;
@@ -116,7 +118,7 @@ interface EventRow {
 }
 
 const COLUMNS =
-  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until";
+  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,caller,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until";
 
 const num = (v: unknown) => Number(v);
 
@@ -204,6 +206,7 @@ export async function listSignals(limit = 500, posted?: { from: number; to: numb
       currentSl: lastMove?.price ?? num(row.current_sl),
       tps: row.tps.map(num),
       note: row.note,
+      caller: row.caller,
       status: row.status,
       createdAt: row.created_at,
       filledAt: row.filled_at,
@@ -289,6 +292,10 @@ export interface NewSignal {
   sl: number;
   tps: number[];
   note: string | null;
+  /** Who called it in the group. */
+  caller: string | null;
+  /** When it was called (ms), if earlier than now: the time of the chat message. Null = now. */
+  postedAt: number | null;
 }
 
 export class SignalInputError extends Error {}
@@ -304,21 +311,31 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
   const ladder = ladderError(input.side, entry, input.sl, input.tps, entry2);
   if (ladder) throw new SignalInputError(ladder);
 
-  const price = await fetchPrice(symbol);
-  if (price === null) throw new SignalInputError(`BingX không có hợp đồng ${symbol}.`);
+  const caller = input.caller?.trim().slice(0, 60) || null;
+  const now = Date.now();
+  const at = input.postedAt === null ? now : Math.floor(input.postedAt / MINUTE_MS) * MINUTE_MS;
+  const backdated = input.postedAt !== null;
+  if (backdated && (!Number.isFinite(at) || at > now)) throw new SignalInputError("Giờ gọi lệnh không được ở tương lai.");
+  if (backdated && now - at > MAX_BACKDATE_MS) throw new SignalInputError("Giờ gọi lệnh chỉ được lùi tối đa 14 ngày.");
+
+  // The checks use the price when the signal was called: now, or the minute of the chat message.
+  const live = await fetchPrice(symbol);
+  if (live === null) throw new SignalInputError(`BingX không có hợp đồng ${symbol}.`);
+  const price = backdated ? await priceAt(symbol, at) : live;
+  if (price === null) throw new SignalInputError(`BingX không có giá ${symbol} lúc gọi lệnh.`);
+  const when = backdated ? "lúc gọi lệnh" : "hiện tại";
   const long = input.side === "long";
   const tp1 = input.tps[0]!;
-  // Already past the SL or TP1: the replay would close or cancel it on the first candle.
+  // Already past the SL or TP1 when called: the replay would close or cancel it on the first candle.
   if (long ? price <= input.sl || price >= tp1 : price >= input.sl || price <= tp1) {
-    throw new SignalInputError(`Giá hiện tại (${price}) đã vượt SL hoặc TP1.`);
+    throw new SignalInputError(`Giá ${when} (${price}) đã vượt SL hoặc TP1.`);
   }
   if (input.orderType === "market" && Math.abs(entry - price) / price > MARKET_TOLERANCE) {
     const off = ((Math.abs(entry - price) / price) * 100).toFixed(1);
-    throw new SignalInputError(`Entry lệnh Market lệch ${off}% so với giá hiện tại (${price}). Kiểm tra lại giá.`);
+    throw new SignalInputError(`Entry lệnh Market lệch ${off}% so với giá ${when} (${price}). Kiểm tra lại giá.`);
   }
 
-  const now = Date.now();
-  const firstMinute = Math.floor(now / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
+  const firstMinute = Math.floor(at / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
   const market = input.orderType === "market";
   const row = await insertOne<{ id: number }>("signals", {
     symbol,
@@ -331,16 +348,30 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
     current_sl: input.sl,
     tps: input.tps,
     note: input.note,
+    caller,
     status: market ? "open" : "pending",
-    filled_at: market ? new Date(now).toISOString() : null,
+    created_at: new Date(at).toISOString(),
+    filled_at: market ? new Date(at).toISOString() : null,
     checked_until: new Date(firstMinute).toISOString(),
     created_by: by,
   });
-  await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "created", price: entry, by });
+  await insertOne("signal_events", { signal_id: row.id, at: new Date(at).toISOString(), kind: "created", price: entry, by });
   if (market) {
-    await insertOne("signal_events", { signal_id: row.id, at: new Date(now).toISOString(), kind: "filled", price: entry, by });
+    await insertOne("signal_events", { signal_id: row.id, at: new Date(at).toISOString(), kind: "filled", price: entry, by });
+  }
+  if (backdated) {
+    // Replay the minutes since the call now, so the result shows at once and the symbol's other
+    // signals are not held back by this one's catch-up.
+    await catchUp(row.id).catch((err) => console.error(`[signals] catch-up #${row.id}`, err));
   }
   return row.id;
+}
+
+/** Close of the 1-minute candle opening at `at` (ms, whole minute), or null when BingX has none. */
+export async function priceAt(symbol: string, at: number): Promise<number | null> {
+  const candles = await fetchKlines(symbol, "1m", at, at + MINUTE_MS - 1);
+  const c = candles.find((k) => k.time === at) ?? candles[0];
+  return c ? c.close : null;
 }
 
 async function loadRow(id: number): Promise<SignalRow | null> {

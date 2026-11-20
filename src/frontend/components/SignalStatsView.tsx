@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnsChart, Figure } from "@/frontend/components/AdminCharts";
 import { CandleChart, EquityChart, EVENT_LABEL, RHistogram, WinrateBars } from "@/frontend/components/SignalCharts";
 import { fmtDateTimeShort, fmtDayFull, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { computeStats, plannedRR, statusOf, type Signal, type SignalCandlesResponse } from "@/shared/signals";
+import { computeStats, NO_CALLER, plannedRR, statusOf, type Signal, type SignalCandlesResponse } from "@/shared/signals";
 
 type Period = "30" | "90" | "180" | "all";
 type SideFilter = "all" | "long" | "short";
@@ -32,19 +32,25 @@ export default function SignalStatsView({
   const [period, setPeriod] = useState<Period>("90");
   const [symbol, setSymbol] = useState("all");
   const [side, setSide] = useState<SideFilter>("all");
+  const [caller, setCaller] = useState("all");
   const [shown, setShown] = useState(PAGE);
   const [openId, setOpenId] = useState<number | null>(null);
 
   const symbols = useMemo(() => [...new Set(signals.map((s) => s.symbol))].sort(), [signals]);
+  const callers = useMemo(() => [...new Set(signals.map((s) => s.caller ?? NO_CALLER))].sort((a, b) => a.localeCompare(b, "vi")), [signals]);
   const filtered = useMemo(() => {
     const since = period === "all" ? -Infinity : Date.parse(updatedAt) - Number(period) * 86_400_000;
     return signals.filter(
-      (s) => Date.parse(s.createdAt) >= since && (symbol === "all" || s.symbol === symbol) && (side === "all" || s.side === side),
+      (s) =>
+        Date.parse(s.createdAt) >= since &&
+        (symbol === "all" || s.symbol === symbol) &&
+        (side === "all" || s.side === side) &&
+        (caller === "all" || (s.caller ?? NO_CALLER) === caller),
     );
-  }, [signals, period, symbol, side, updatedAt]);
+  }, [signals, period, symbol, side, caller, updatedAt]);
   const st = useMemo(() => computeStats(filtered), [filtered]);
 
-  useEffect(() => setShown(PAGE), [period, symbol, side]);
+  useEffect(() => setShown(PAGE), [period, symbol, side, caller]);
 
   const tiles = [
     {
@@ -85,6 +91,16 @@ export default function SignalStatsView({
             </option>
           ))}
         </select>
+        {callers.length > 1 && (
+          <select className="input sig__select" aria-label="Người gọi lệnh" value={caller} onChange={(e) => setCaller(e.target.value)}>
+            <option value="all">Tất cả người gọi</option>
+            {callers.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="sig__seg" role="group" aria-label="Hướng lệnh">
           {(
             [
@@ -208,9 +224,15 @@ export default function SignalStatsView({
 
           <Figure
             n={4}
-            title="Winrate theo cặp coin và hướng lệnh"
+            title="Winrate theo người gọi, hướng lệnh và cặp coin"
             caption={<>Thanh là winrate, vạch dọc là mốc 50%. Bên phải: số lệnh thắng trên số lệnh thắng + thua, và tổng R.</>}
           >
+            {st.byCaller.length > 1 && (
+              <>
+                <p className="sig__group">Theo người gọi lệnh</p>
+                <WinrateBars rows={st.byCaller} labelOf={(k) => k} />
+              </>
+            )}
             <p className="sig__group">Theo hướng lệnh</p>
             <WinrateBars rows={st.bySide} labelOf={(k) => SIDE_LABEL[k as "long" | "short"] ?? k} />
             <p className="sig__group">Theo cặp coin</p>
@@ -229,7 +251,8 @@ export default function SignalStatsView({
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Đăng lúc</th>
+                  <th>Gọi lúc</th>
+                  <th>Người gọi</th>
                   <th>Cặp</th>
                   <th>Lệnh</th>
                   <th className="is-num">Entry</th>
@@ -284,7 +307,8 @@ function SignalRow({
             #{s.id} {open ? "▴" : "▾"}
           </button>
         </td>
-        <td data-label="Đăng lúc" className="num">{fmtDateTimeShort(Date.parse(s.createdAt))}</td>
+        <td data-label="Gọi lúc" className="num">{fmtDateTimeShort(Date.parse(s.createdAt))}</td>
+        <td data-label="Người gọi">{s.caller ?? "—"}</td>
         <td data-label="Cặp" className="num">{s.symbol}</td>
         <td data-label="Lệnh">
           <span className={`sig__side is-${s.side}`}>{SIDE_LABEL[s.side]}</span> <span className="sig__type">{s.orderType === "market" ? "Market" : "Limit"}</span>
@@ -308,7 +332,7 @@ function SignalRow({
       </tr>
       {open && (
         <tr className="sig__detail-row">
-          <td colSpan={10}>
+          <td colSpan={11}>
             <SignalDetail s={s} loadCandles={loadCandles} />
           </td>
         </tr>
