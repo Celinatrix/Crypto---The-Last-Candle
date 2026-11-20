@@ -14,7 +14,8 @@ const csp = [
   "img-src 'self' data: blob:",
   "media-src 'self' https://d8j0ntlcm91z4.cloudfront.net",
   "font-src 'self' data:",
-  `connect-src 'self' https://challenges.cloudflare.com${isDev ? " ws:" : ""}`,
+  // BingX public market stream: live prices in the signal list, straight from the browser.
+  `connect-src 'self' https://challenges.cloudflare.com wss://open-api-swap.bingx.com${isDev ? " ws:" : ""}`,
   "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",

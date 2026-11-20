@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnsChart, Figure } from "@/frontend/components/AdminCharts";
 import { CandleChart, EquityChart, EVENT_LABEL, RHistogram, WinrateBars } from "@/frontend/components/SignalCharts";
 import { fmtDateTimeShort, fmtDayFull, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { computeStats, fmtResult, NO_CALLER, plannedRR, signalOutcome, statusOf, symbolLabel, type Signal, type SignalCandlesResponse } from "@/shared/signals";
+import { useLivePrices } from "@/frontend/lib/useLivePrices";
+import { computeStats, fmtResult, NO_CALLER, openResultAt, plannedRR, signalOutcome, statusOf, symbolLabel, type Signal, type SignalCandlesResponse } from "@/shared/signals";
 
 type Period = "30" | "90" | "180" | "all";
 type SideFilter = "all" | "long" | "short";
@@ -79,6 +80,9 @@ export default function SignalStatsView({
   ];
 
   const list = useMemo(() => [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [filtered]);
+  // Live BingX prices for the signals still running or waiting to fill.
+  const liveSymbols = useMemo(() => signals.filter((s) => s.status === "open" || s.status === "pending").map((s) => s.symbol), [signals]);
+  const live = useLivePrices(liveSymbols);
 
   return (
     <div className="sig">
@@ -267,6 +271,7 @@ export default function SignalStatsView({
                   <th className="is-num">TP</th>
                   <th className="is-num">R:R</th>
                   <th>Trạng thái</th>
+                  <th className="is-num">Giá BingX</th>
                   <th className="is-num">Kết quả</th>
                 </tr>
               </thead>
@@ -275,7 +280,15 @@ export default function SignalStatsView({
                   const st0 = statusOf(s);
                   const open = openId === s.id;
                   return (
-                    <SignalRow key={s.id} s={s} status={st0} open={open} onToggle={() => setOpenId(open ? null : s.id)} loadCandles={loadCandles} />
+                    <SignalRow
+                      key={s.id}
+                      s={s}
+                      status={st0}
+                      open={open}
+                      livePrice={live[s.symbol] ?? null}
+                      onToggle={() => setOpenId(open ? null : s.id)}
+                      loadCandles={loadCandles}
+                    />
                   );
                 })}
               </tbody>
@@ -296,16 +309,28 @@ function SignalRow({
   s,
   status,
   open,
+  livePrice,
   onToggle,
   loadCandles,
 }: {
   s: Signal;
   status: ReturnType<typeof statusOf>;
   open: boolean;
+  /** Last BingX price while the signal runs or waits; null when closed or not received yet. */
+  livePrice: number | null;
   onToggle: () => void;
   loadCandles: (id: number) => Promise<SignalCandlesResponse>;
 }) {
   const finished = s.status === "closed";
+  const running = s.status === "open" || s.status === "pending";
+  const floating = livePrice === null ? null : openResultAt(s, livePrice);
+  const floatValue = floating === null ? null : floating.r ?? floating.pct;
+  const floatText =
+    floating === null
+      ? null
+      : floating.r !== null
+        ? fmtR(floating.r)
+        : `${floating.pct >= 0 ? "+" : "−"}${Math.abs(floating.pct).toFixed(2)}%`;
   return (
     <>
       <tr className={`sig__row${open ? " is-open" : ""}`}>
@@ -333,16 +358,39 @@ function SignalRow({
         <td data-label="Trạng thái">
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span>
         </td>
+        <td data-label="Giá BingX" className="is-num num sig__live" aria-live="off">
+          {running ? (livePrice === null ? <span className="sig__live-wait">…</span> : fmtPrice(livePrice)) : "—"}
+        </td>
         <td
           data-label="Kết quả"
-          className={`is-num num${finished ? (signalOutcome(s) === "win" ? " is-ok" : signalOutcome(s) === "loss" ? " is-danger" : "") : ""}`}
+          className={`is-num num${
+            finished
+              ? signalOutcome(s) === "win"
+                ? " is-ok"
+                : signalOutcome(s) === "loss"
+                  ? " is-danger"
+                  : ""
+              : floatValue !== null
+                ? floatValue > 0
+                  ? " is-ok"
+                  : floatValue < 0
+                    ? " is-danger"
+                    : ""
+                : ""
+          }`}
         >
-          {s.status === "cancelled" || s.status === "pending" ? "—" : finished ? fmtResult(s) : `${fmtResult(s)} đã chốt`}
+          {s.status === "cancelled" || s.status === "pending"
+            ? "—"
+            : finished
+              ? fmtResult(s)
+              : floatText !== null
+                ? <>{floatText} <small className="sig__was">tạm tính</small></>
+                : "…"}
         </td>
       </tr>
       {open && (
         <tr className="sig__detail-row">
-          <td colSpan={11}>
+          <td colSpan={12}>
             <SignalDetail s={s} loadCandles={loadCandles} />
           </td>
         </tr>
