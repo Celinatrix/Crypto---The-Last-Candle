@@ -9,8 +9,11 @@
  *   1R, one filled at ET1 only loses less. Moving the SL later never changes 1R.
  * - Once TP1 is reached, an entry that has not filled is dropped.
  * - What has filled is split evenly across the 1–3 take-profits; each TP closes 1/n of it.
- * - A signal may be posted without TPs: it runs until the SL or a manual close, or until the admin
- *   adds TPs ("tps_set"), which apply from the next replayed minute. TPs can change until one is hit.
+ * - A signal may be posted without TPs, and the admin may add TPs later ("tps_set", from the next
+ *   replayed minute; they can change until one is hit). Until then it is scored at its best price:
+ *   the highest high (long) or lowest low (short) of the candles after the fill. When the SL is reached
+ *   and the best price was worth at least BEST_MIN_R, it closes there (exit "best"); below that, the SL
+ *   counts as usual. The admin can also close it at the best price at any time.
  * - The SL stays where it is after a TP, unless the admin moves it (a dated "sl_moved" event).
  * - Market orders are filled at the posted entry. Limit orders wait until a candle touches the entry; if a
  *   candle reaches the SL or TP1 first, the signal is cancelled and left out of the statistics.
@@ -30,8 +33,8 @@ export const MAX_BACKDATE_MS = 14 * 86_400_000;
 export type SignalSide = "long" | "short";
 export type SignalOrderType = "market" | "limit";
 export type SignalStatus = "pending" | "open" | "closed" | "cancelled";
-export type SignalExit = "tp" | "sl" | "manual" | "cancel_sl" | "cancel_tp" | "cancel_admin";
-export type SignalEventKind = "created" | "filled" | "tp" | "sl" | "sl_moved" | "manual_close" | "cancelled" | "tps_set";
+export type SignalExit = "tp" | "sl" | "manual" | "best" | "cancel_sl" | "cancel_tp" | "cancel_admin";
+export type SignalEventKind = "created" | "filled" | "tp" | "sl" | "sl_moved" | "manual_close" | "cancelled" | "tps_set" | "best";
 
 export interface SignalEvent {
   at: string;
@@ -70,6 +73,8 @@ export interface Signal {
   tpHits: number;
   /** R booked so far: final once the signal is closed. */
   realizedR: number;
+  /** Without TPs: the best price reached since the fill (highest high long, lowest low short). */
+  bestPrice: number | null;
   exit: SignalExit | null;
   events: SignalEvent[];
 }
@@ -115,7 +120,11 @@ export interface EngineState {
   exit: SignalExit | null;
   filledAt: number | null;
   closedAt: number | null;
+  bestPrice: number | null;
 }
+
+/** A signal without TPs that reaches its SL is scored at its best price only from this much profit. */
+export const BEST_MIN_R = 1;
 
 export interface EngineEvent {
   at: number;
@@ -163,6 +172,12 @@ export const remainingOf = (s: Pick<EngineState, "entry" | "entry2" | "entriesFi
 /** Average R:R of the TPs (what the signal earns if both entries fill and every TP is hit); null without TPs. */
 export function plannedRR(s: Plan & Pick<EngineState, "tps">): number | null {
   return s.tps.length ? s.tps.reduce((sum, tp) => sum + rAt(s, tp), 0) / s.tps.length : null;
+}
+
+/** R of what is still open if it closed at the best price so far; null with TPs or before any candle. */
+export function bestR(s: Plan & Pick<EngineState, "entriesFilled" | "tps" | "tpHits" | "bestPrice" | "status">): number | null {
+  if (s.tps.length > 0 || s.bestPrice === null || s.status !== "open") return null;
+  return pnl(s, remainingOf(s), filledOf(s).avg, s.bestPrice);
 }
 
 /** Two entries in either order → [ET1 nearer the TPs, ET2 nearer the SL]. */
@@ -229,13 +244,26 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
     // Open position: the stop first, then every TP the candle reached.
     const filled = filledOf(s);
     if (hitsSl) {
-      book(c.time, s.currentSl, "sl", pnl(s, remainingOf(s), filled.avg, s.currentSl));
+      const best = bestR(s);
+      if (best !== null && best >= BEST_MIN_R - EPS) {
+        s.realizedR = s.realizedR + best;
+        events.push({ at: c.time, kind: "best", price: s.bestPrice!, r: round(best) });
+        s.exit = "best";
+      } else {
+        book(c.time, s.currentSl, "sl", pnl(s, remainingOf(s), filled.avg, s.currentSl));
+        s.exit = "sl";
+      }
       s.status = "closed";
-      s.exit = "sl";
       s.closedAt = c.time;
       continue;
     }
     if (filledNow) continue;
+    if (s.tps.length === 0) {
+      // Only candles after the fill count: within the filling candle the order of moves is unknown.
+      const extreme = long ? c.high : c.low;
+      if (s.bestPrice === null || (long ? extreme > s.bestPrice : extreme < s.bestPrice)) s.bestPrice = extreme;
+      continue;
+    }
     while (s.tpHits < s.tps.length && reaches(s.tps[s.tpHits]!)) {
       const tp = s.tps[s.tpHits]!;
       book(c.time, tp, "tp", pnl(s, filled.qty / s.tps.length, filled.avg, tp));
@@ -248,6 +276,18 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
     }
   }
   return { state: s, events };
+}
+
+/** The admin closes a signal without TPs at its best price so far. */
+export function closeAtBest(start: EngineState, at: number): { state: EngineState; events: EngineEvent[] } {
+  const s: EngineState = { ...start, tps: [...start.tps] };
+  const r = bestR(s);
+  if (r === null) return { state: s, events: [] };
+  s.realizedR = s.realizedR + r;
+  s.status = "closed";
+  s.exit = "best";
+  s.closedAt = at;
+  return { state: s, events: [{ at, kind: "best", price: s.bestPrice!, r: round(r) }] };
 }
 
 /** The admin closes what is left at `price` (an open signal) or cancels a pending one. */
@@ -295,6 +335,8 @@ export type Outcome = "win" | "loss" | "breakeven";
 
 export const outcomeOf = (r: number): Outcome => (r > EPS ? "win" : r < -EPS ? "loss" : "breakeven");
 
+const fmtSignedR = (r: number) => `${r >= 0 ? "+" : "−"}${Math.abs(r).toFixed(2)}R`;
+
 /** Vietnamese status label of a signal, and the tone it is shown in. Shared by the page and the PDF. */
 export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "warn" | "muted" | "info" } {
   if (s.status === "pending") return { label: "Chờ khớp", tone: "warn" };
@@ -303,6 +345,7 @@ export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "w
       ...(s.entry2 !== null && s.tpHits === 0 ? [`khớp ${s.entriesFilled}/2 ET`] : []),
       ...(s.tpHits ? [`${s.tpHits}/${s.tps.length} TP`] : []),
       ...(s.tps.length === 0 ? ["chưa có TP"] : []),
+      ...(s.tps.length === 0 && s.bestPrice !== null ? [`tối đa ${fmtSignedR(bestR(s) ?? 0)}`] : []),
     ];
     return { label: ["Đang chạy", ...parts].join(" · "), tone: "info" };
   }
@@ -310,7 +353,8 @@ export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "w
     return { label: s.exit === "cancel_admin" ? "Đã huỷ" : s.exit === "cancel_sl" ? "Huỷ (chạm SL trước)" : "Huỷ (chạm TP1 trước)", tone: "muted" };
   }
   const o = outcomeOf(s.realizedR);
-  const how = s.exit === "tp" ? "hết TP" : s.exit === "sl" ? (s.tpHits ? `${s.tpHits} TP rồi SL` : "SL") : "đóng tay";
+  const how =
+    s.exit === "tp" ? "hết TP" : s.exit === "sl" ? (s.tpHits ? `${s.tpHits} TP rồi SL` : "SL") : s.exit === "best" ? "giá tốt nhất" : "đóng tay";
   return { label: `${o === "win" ? "Thắng" : o === "loss" ? "Thua" : "Hoà"} · ${how}`, tone: o === "win" ? "ok" : o === "loss" ? "danger" : "muted" };
 }
 

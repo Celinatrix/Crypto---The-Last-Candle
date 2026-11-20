@@ -9,6 +9,7 @@
 import { eq, insertOne, rpc, select, update } from "./db";
 import {
   advance,
+  closeAtBest,
   closeByHand,
   ladderError,
   MAX_BACKDATE_MS,
@@ -107,6 +108,7 @@ interface SignalRow {
   filled_at: string | null;
   closed_at: string | null;
   checked_until: string;
+  best_price: number | null;
 }
 
 interface EventRow {
@@ -118,7 +120,7 @@ interface EventRow {
 }
 
 const COLUMNS =
-  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,caller,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until";
+  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,caller,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until,best_price";
 
 const num = (v: unknown) => Number(v);
 
@@ -137,6 +139,7 @@ function toState(row: SignalRow): EngineState {
     exit: row.exit_reason,
     filledAt: row.filled_at ? Date.parse(row.filled_at) : null,
     closedAt: row.closed_at ? Date.parse(row.closed_at) : null,
+    bestPrice: row.best_price === null ? null : num(row.best_price),
   };
 }
 
@@ -157,6 +160,7 @@ async function apply(row: SignalRow, state: EngineState, checkedUntil: number, e
       filled_at: iso(state.filledAt),
       closed_at: iso(state.closedAt),
       checked_until: new Date(checkedUntil).toISOString(),
+      best_price: state.bestPrice,
     },
     p_events: events.map((e) => ({ at: new Date(e.at).toISOString(), kind: e.kind, price: e.price, r: e.r, by: e.by ?? null })),
   });
@@ -213,6 +217,7 @@ export async function listSignals(limit = 500, posted?: { from: number; to: numb
       closedAt: row.closed_at,
       tpHits: row.tp_hits,
       realizedR: num(row.realized_r),
+      bestPrice: row.best_price === null ? null : num(row.best_price),
       exit: row.exit_reason,
       events: ev,
     };
@@ -444,6 +449,18 @@ export async function closeSignal(id: number, price: number | null, by: string):
   if (row.status !== "pending" && row.status !== "open") throw new SignalInputError(STILL_RUNNING);
   if (row.status === "open" && !(price !== null && price > 0)) throw new SignalInputError("Nhập giá đóng lệnh.");
   const { state, events } = closeByHand(toState(row), row.status === "open" ? price : null, Date.now());
+  const ok = await apply(row, state, Date.parse(row.checked_until), events.map((e) => ({ ...e, by })));
+  if (!ok) throw new SignalInputError("Tín hiệu vừa được cập nhật. Hãy thử lại.");
+}
+
+/** Closes an open signal without TPs at the best price it has reached. */
+export async function closeSignalAtBest(id: number, by: string): Promise<void> {
+  const row = await catchUp(id);
+  if (!row) throw new SignalInputError("Không tìm thấy tín hiệu.");
+  if (row.status !== "open") throw new SignalInputError(row.status === "pending" ? "Lệnh chưa khớp." : STILL_RUNNING);
+  if (row.tps.length > 0) throw new SignalInputError("Lệnh đã có TP, hãy dùng Đóng tay.");
+  if (row.best_price === null) throw new SignalInputError("Chưa có nến nào sau khi khớp. Thử lại sau 1 phút.");
+  const { state, events } = closeAtBest(toState(row), Date.now());
   const ok = await apply(row, state, Date.parse(row.checked_until), events.map((e) => ({ ...e, by })));
   if (!ok) throw new SignalInputError("Tín hiệu vừa được cập nhật. Hãy thử lại.");
 }

@@ -274,6 +274,7 @@ const EVENT_LABEL: Record<string, string> = {
   manual_close: "Đóng tay",
   cancelled: "Huỷ lệnh",
   tps_set: "Đặt TP",
+  best: "Chốt giá tốt nhất",
 };
 
 export function CandleChart({ signal, candles, interval }: { signal: Signal; candles: CandlePoint[]; interval: string }) {
@@ -385,7 +386,7 @@ export function CandleChart({ signal, candles, interval }: { signal: Signal; can
               cx={cx(e.idx)}
               cy={y(e.price!)}
               r={5}
-              style={{ fill: e.kind === "tp" ? WIN : e.kind === "sl" ? LOSS : "#fff" }}
+              style={{ fill: e.kind === "tp" || e.kind === "best" ? WIN : e.kind === "sl" ? LOSS : "#fff" }}
             />
           ))}
         </svg>

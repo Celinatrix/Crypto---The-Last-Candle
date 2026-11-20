@@ -58,6 +58,8 @@ export interface WeekSummary {
   slAfterTp: number;
   /** Closed by hand. */
   manual: number;
+  /** Closed at the best price (signals without TPs). */
+  best: number;
   stats: SignalStats;
 }
 
@@ -96,6 +98,7 @@ export function summarizeWeek(all: Signal[], week: string, now = Date.now()): We
     sl: count((s) => s.status === "closed" && s.exit === "sl"),
     slAfterTp: count((s) => s.status === "closed" && s.exit === "sl" && s.tpHits > 0),
     manual: count((s) => s.status === "closed" && s.exit === "manual"),
+    best: count((s) => s.status === "closed" && s.exit === "best"),
     stats: computeStats(signals),
   };
 }

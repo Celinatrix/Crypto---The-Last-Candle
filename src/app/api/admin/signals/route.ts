@@ -10,6 +10,7 @@
  *                                       { action: "set_tps", id, tps }   (1–3, until a TP is hit)
  *                                       { action: "move_sl", id, price }
  *                                       { action: "close", id, price }   (a pending signal is cancelled)
+ *                                       { action: "close_best", id }     (no TPs: close at the best price)
  * Signed-in admins only; POST also needs a same-origin request.
  */
 import { NextResponse, type NextRequest } from "next/server";
@@ -18,6 +19,7 @@ import { sameOrigin } from "@/backend/guard";
 import {
   chartCandles,
   closeSignal,
+  closeSignalAtBest,
   createSignal,
   evaluateIfStale,
   fetchPrice,
@@ -121,6 +123,10 @@ export async function POST(req: NextRequest) {
       case "close":
         if (!isId(b.id) || (b.price !== null && b.price !== undefined && !isPrice(b.price))) return fail("Dữ liệu không hợp lệ.", 400);
         await closeSignal(b.id, isPrice(b.price) ? b.price : null, admin);
+        return NextResponse.json({ ok: true });
+      case "close_best":
+        if (!isId(b.id)) return fail("Dữ liệu không hợp lệ.", 400);
+        await closeSignalAtBest(b.id, admin);
         return NextResponse.json({ ok: true });
       default:
         return fail("Dữ liệu không hợp lệ.", 400);

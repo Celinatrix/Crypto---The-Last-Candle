@@ -114,6 +114,7 @@ function build(): MockSet {
       exit: null,
       filledAt: orderType === "market" ? createdAt : null,
       closedAt: null,
+      bestPrice: null,
     };
     let run = advance(start, post);
     // Some signals with two or more TPs had their SL moved to entry after TP1, as the admin may announce.
@@ -148,6 +149,7 @@ function build(): MockSet {
       closedAt: state.closedAt === null ? null : new Date(state.closedAt).toISOString(),
       tpHits: state.tpHits,
       realizedR: state.realizedR,
+      bestPrice: state.bestPrice,
       exit: state.exit,
       events,
     });
