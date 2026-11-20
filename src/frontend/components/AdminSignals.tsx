@@ -9,7 +9,9 @@ import { weekOptions, weekRange } from "@/shared/weeklyReport";
 import {
   avgEntry,
   BEST_MIN_R,
+  bestPct,
   bestR,
+  fmtResult,
   KNOWN_CALLERS,
   ladderError,
   symbolLabel,
@@ -286,14 +288,14 @@ function SignalForm({
   const nums = {
     entry: parsePrice(entry),
     entry2: twoEntries ? parsePrice(entry2) : null,
-    sl: parsePrice(sl),
+    sl: sl.trim() ? parsePrice(sl) : null,
     tps: tps.map(parsePrice).filter((n) => !Number.isNaN(n)),
   };
   const filledTps = tps.filter((t) => t.trim() !== "");
   const ready =
     !Number.isNaN(nums.entry) &&
     !(nums.entry2 !== null && Number.isNaN(nums.entry2)) &&
-    !Number.isNaN(nums.sl) &&
+    !(nums.sl !== null && Number.isNaN(nums.sl)) &&
     nums.tps.length === filledTps.length;
   const [et1, et2] = orderEntries(side, nums.entry, nums.entry2);
   const ladder = ready ? ladderError(side, et1, nums.sl, nums.tps, et2) : null;
@@ -490,10 +492,14 @@ function SignalForm({
         <p className="sig-form__preview num">
           {preview.entry2 !== null &&
             `ET1 ${fmtPrice(preview.entry)} · ET2 ${fmtPrice(preview.entry2)} (mỗi ET ½ vị thế) · Giá TB ${fmtPrice(avgEntry(preview))} · `}
-          1R = {fmtPrice(Math.abs(avgEntry(preview) - preview.sl))} ({((Math.abs(avgEntry(preview) - preview.sl) / avgEntry(preview)) * 100).toFixed(2)}%) ·{" "}
+          {preview.sl === null
+            ? "Chưa có SL: kết quả tính theo % từ Entry, thêm SL sau ở mục Đang chạy để tính theo R · "
+            : `1R = ${fmtPrice(Math.abs(avgEntry(preview) - preview.sl))} (${((Math.abs(avgEntry(preview) - preview.sl) / avgEntry(preview)) * 100).toFixed(2)}%) · `}
           {preview.tps.length === 0
             ? "Chưa có TP: lệnh chạy tới khi chạm SL hoặc đóng tay, bổ sung TP sau ở mục Đang chạy"
-            : `${preview.tps.map((tp, i) => `TP${i + 1} ${fmtR(rAt(preview, tp), 2)}`).join(" · ")} · R:R kế hoạch 1 : ${plannedRR(preview)!.toFixed(2)} · mỗi TP chốt ${
+            : preview.sl === null
+              ? `${preview.tps.length} TP · mỗi TP chốt ${preview.tps.length === 1 ? "100%" : `1/${preview.tps.length}`}`
+              : `${preview.tps.map((tp, i) => `TP${i + 1} ${fmtR(rAt(preview, tp), 2)}`).join(" · ")} · R:R kế hoạch 1 : ${plannedRR(preview)!.toFixed(2)} · mỗi TP chốt ${
                 preview.tps.length === 1 ? "100%" : `1/${preview.tps.length}`
               }`}
         </p>
@@ -556,6 +562,10 @@ function ActiveCard({
   const closePrice = parsePrice(closeInput);
   const pending = s.status === "pending";
   const best = bestR(s);
+  const bestP = bestPct(s);
+  const noSl = s.sl === null;
+  // The close-at-best value as shown: R with an SL, percent without.
+  const bestText = noSl ? (bestP === null ? null : `${bestP >= 0 ? "+" : "−"}${Math.abs(bestP).toFixed(2)}%`) : best === null ? null : fmtR(best);
   const [confirmBest, setConfirmBest] = useState(false);
 
   return (
@@ -567,18 +577,20 @@ function ActiveCard({
         </p>
         <p className="admin__sub num">
           {s.entry2 === null ? `Entry ${fmtPrice(s.entry)}` : `ET ${fmtPrice(s.entry)} / ${fmtPrice(s.entry2)} (khớp ${s.entriesFilled}/2)`} · SL{" "}
-          {fmtPrice(s.currentSl)}
-          {s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.length ? s.tps.map(fmtPrice).join(" / ") : "chưa có"}
+          {s.currentSl === null ? "chưa có" : fmtPrice(s.currentSl)}
+          {s.sl !== null && s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.length ? s.tps.map(fmtPrice).join(" / ") : "chưa có"}
         </p>
         <p className="admin__sub num">
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span> · {s.caller ? `${s.caller} gọi` : "Gọi"} {fmtDateTimeShort(Date.parse(s.createdAt))}
-          {!pending && ` · Đã chốt ${fmtR(s.realizedR)}`}
+          {!pending && ` · Đã chốt ${fmtResult(s)}`}
         </p>
         {s.status === "open" && s.tps.length === 0 && (
           <p className="admin__sub num">
-            {best === null
+            {bestText === null
               ? "Chưa có TP · giá tốt nhất tính từ nến sau khi khớp"
-              : `Chưa có TP · giá tốt nhất ${fmtPrice(s.bestPrice!)} = ${fmtR(best)} · chạm SL: ${best >= BEST_MIN_R ? `chốt ${fmtR(best)}` : `−1R (cần ≥ ${BEST_MIN_R}R)`}`}
+              : noSl
+                ? `Chưa có SL, TP · giá tốt nhất ${fmtPrice(s.bestPrice!)} = ${bestText} từ Entry · chạy tới khi bạn bấm Chốt hoặc thêm SL`
+                : `Chưa có TP · giá tốt nhất ${fmtPrice(s.bestPrice!)} = ${bestText} · chạm SL: ${best! >= BEST_MIN_R ? `chốt ${bestText}` : `−1R (cần ≥ ${BEST_MIN_R}R)`}`}
           </p>
         )}
       </div>
@@ -587,15 +599,15 @@ function ActiveCard({
           <button
             type="button"
             className={`btn btn--sm ${confirmBest ? "admin__btn-danger" : "btn--ghost"}`}
-            disabled={busy || best === null}
+            disabled={busy || bestText === null}
             onBlur={() => setConfirmBest(false)}
             onClick={() => {
               if (!confirmBest) return setConfirmBest(true);
               setConfirmBest(false);
-              void run({ action: "close_best", id: s.id }, `Đã chốt #${s.id} theo giá tốt nhất ${fmtPrice(s.bestPrice!)} (${fmtR(best!)}).`);
+              void run({ action: "close_best", id: s.id }, `Đã chốt #${s.id} theo giá tốt nhất ${fmtPrice(s.bestPrice!)} (${bestText}).`);
             }}
           >
-            {confirmBest ? "Bấm lần nữa để xác nhận" : `Chốt theo giá tốt nhất${best === null ? "" : ` (${fmtR(best)})`}`}
+            {confirmBest ? "Bấm lần nữa để xác nhận" : `Chốt theo giá tốt nhất${bestText === null ? "" : ` (${bestText})`}`}
           </button>
         )}
         {canSetTps && (
@@ -619,14 +631,23 @@ function ActiveCard({
           </div>
         )}
         <div className="sig-form__inline">
-          <input className="input input--mono" inputMode="decimal" placeholder="SL mới" aria-label={`SL mới cho #${s.id}`} value={slInput} onChange={(e) => setSlInput(e.target.value)} />
+          <input
+            className="input input--mono"
+            inputMode="decimal"
+            placeholder={noSl ? "Thêm SL" : "SL mới"}
+            aria-label={`${noSl ? "Thêm SL" : "SL mới"} cho #${s.id}`}
+            value={slInput}
+            onChange={(e) => setSlInput(e.target.value)}
+          />
           <button
             type="button"
             className="btn btn--ghost btn--sm"
             disabled={busy || Number.isNaN(slPrice)}
-            onClick={() => void run({ action: "move_sl", id: s.id, price: slPrice }, `Đã dời SL #${s.id} về ${fmtPrice(slPrice)}.`)}
+            onClick={() =>
+              void run({ action: "move_sl", id: s.id, price: slPrice }, noSl ? `Đã thêm SL #${s.id}: ${fmtPrice(slPrice)}.` : `Đã dời SL #${s.id} về ${fmtPrice(slPrice)}.`)
+            }
           >
-            Dời SL
+            {noSl ? "Thêm SL" : "Dời SL"}
           </button>
         </div>
         <div className="sig-form__inline">
@@ -841,7 +862,7 @@ function SignalImageReader({
             const state = states[key] ?? "new";
             const entry = d.entry ?? (d.orderType === "market" ? d.refPrice : null);
             const [et1, et2] = entry === null ? [NaN, null] : orderEntries(d.side, entry, d.entry2);
-            const ladder = d.missing.length === 0 && d.sl !== null ? ladderError(d.side, et1, d.sl, d.tps, et2) : null;
+            const ladder = d.missing.length === 0 ? ladderError(d.side, et1, d.sl, d.tps, et2) : null;
             const canPost = d.missing.length === 0 && !ladder && state === "new";
             return (
               <li key={key} className={`sig-read__item${state === "done" ? " is-done" : ""}`}>

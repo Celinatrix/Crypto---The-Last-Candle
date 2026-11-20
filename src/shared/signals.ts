@@ -14,6 +14,9 @@
  *   the highest high (long) or lowest low (short) of the candles after the fill. When the SL is reached
  *   and the best price was worth at least BEST_MIN_R, it closes there (exit "best"); below that, the SL
  *   counts as usual. The admin can also close it at the best price at any time.
+ * - A signal may also be posted without an SL. With no 1R it is scored in percent from the average
+ *   fill (realizedPct, kept for every signal), never stops out, and counts in the winrate by the sign
+ *   of that percent; R statistics leave it out. Adding the SL later switches it to R.
  * - The SL stays where it is after a TP, unless the admin moves it (a dated "sl_moved" event).
  * - Market orders are filled at the posted entry. Limit orders wait until a candle touches the entry; if a
  *   candle reaches the SL or TP1 first, the signal is cancelled and left out of the statistics.
@@ -84,10 +87,10 @@ export interface Signal {
   entry2: number | null;
   /** How many entries have filled: 0 (waiting), 1 or 2. */
   entriesFilled: number;
-  /** The original stop: defines 1R. */
-  sl: number;
-  /** The stop in force now (the latest move, or the original). */
-  currentSl: number;
+  /** The original stop: defines 1R. Null: posted without SL, scored in percent. */
+  sl: number | null;
+  /** The stop in force now (the latest move, or the original); null without SL. */
+  currentSl: number | null;
   /** 0–3 take-profits, nearest first (none yet: added later by the admin). */
   tps: number[];
   note: string | null;
@@ -99,8 +102,10 @@ export interface Signal {
   filledAt: string | null;
   closedAt: string | null;
   tpHits: number;
-  /** R booked so far: final once the signal is closed. */
+  /** R booked so far: final once the signal is closed (0 without SL). */
   realizedR: number;
+  /** Percent of the position booked so far, from the average fill (a short gains when price falls). */
+  realizedPct: number;
   /** Without TPs: the best price reached since the fill (highest high long, lowest low short). */
   bestPrice: number | null;
   exit: SignalExit | null;
@@ -139,12 +144,13 @@ export interface EngineState {
   entry: number;
   entry2: number | null;
   entriesFilled: number;
-  sl: number;
+  sl: number | null;
   tps: number[];
   status: SignalStatus;
-  currentSl: number;
+  currentSl: number | null;
   tpHits: number;
   realizedR: number;
+  realizedPct: number;
   exit: SignalExit | null;
   filledAt: number | null;
   closedAt: number | null;
@@ -183,11 +189,18 @@ export function filledOf(s: Pick<EngineState, "entry" | "entry2" | "entriesFille
   return { qty, avg: qty > 0 ? filled.reduce((sum, e) => sum + e.price * e.w, 0) / qty : s.entry };
 }
 
-/** R of `qty` (a share of the planned position) bought at `from` and closed at `price`. */
+/** R of `qty` (a share of the planned position) bought at `from` and closed at `price`; 0 without SL. */
 function pnl(s: Plan, qty: number, from: number, price: number): number {
+  if (s.sl === null) return 0;
   const risk = Math.abs(avgEntry(s) - s.sl);
   if (!(risk > 0)) return 0;
   return (qty * (s.side === "long" ? price - from : from - price)) / risk;
+}
+
+/** Percent of the position made by `qty` of it bought at `from` and closed at `price`. */
+function pctOf(s: Pick<Plan, "side">, qty: number, from: number, price: number): number {
+  if (!(from > 0)) return 0;
+  return (qty * (s.side === "long" ? price - from : from - price) * 100) / from;
 }
 
 /** R of the whole planned position, from its average entry, if it closed at `price`. */
@@ -199,13 +212,21 @@ export const remainingOf = (s: Pick<EngineState, "entry" | "entry2" | "entriesFi
 
 /** Average R:R of the TPs (what the signal earns if both entries fill and every TP is hit); null without TPs. */
 export function plannedRR(s: Plan & Pick<EngineState, "tps">): number | null {
-  return s.tps.length ? s.tps.reduce((sum, tp) => sum + rAt(s, tp), 0) / s.tps.length : null;
+  return s.tps.length && s.sl !== null ? s.tps.reduce((sum, tp) => sum + rAt(s, tp), 0) / s.tps.length : null;
 }
 
-/** R of what is still open if it closed at the best price so far; null with TPs or before any candle. */
-export function bestR(s: Plan & Pick<EngineState, "entriesFilled" | "tps" | "tpHits" | "bestPrice" | "status">): number | null {
-  if (s.tps.length > 0 || s.bestPrice === null || s.status !== "open") return null;
+type BestInput = Plan & Pick<EngineState, "entriesFilled" | "tps" | "tpHits" | "bestPrice" | "status">;
+
+/** R of what is still open if it closed at the best price so far; null with TPs, without SL or before any candle. */
+export function bestR(s: BestInput): number | null {
+  if (s.tps.length > 0 || s.sl === null || s.bestPrice === null || s.status !== "open") return null;
   return pnl(s, remainingOf(s), filledOf(s).avg, s.bestPrice);
+}
+
+/** Percent of the position at the best price so far (what is open, plus what TPs booked); null with TPs or before any candle. */
+export function bestPct(s: BestInput & Pick<EngineState, "realizedPct">): number | null {
+  if (s.tps.length > 0 || s.bestPrice === null || s.status !== "open") return null;
+  return s.realizedPct + pctOf(s, remainingOf(s), filledOf(s).avg, s.bestPrice);
 }
 
 /** Two entries in either order → [ET1 nearer the TPs, ET2 nearer the SL]. */
@@ -227,9 +248,12 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
   const sorted = [...moves].sort((a, b) => a.at - b.at);
   let mi = 0;
 
-  const book = (at: number, price: number, kind: "sl" | "tp", r: number) => {
+  /** Books `qty` of the position bought at `from` and closed at `price`, in R (with an SL) and percent. */
+  const book = (at: number, price: number, kind: "sl" | "tp", qty: number, from: number) => {
+    const r = pnl(s, qty, from, price);
     s.realizedR = s.realizedR + r;
-    events.push({ at, kind, price, r: round(r) });
+    s.realizedPct = s.realizedPct + pctOf(s, qty, from, price);
+    events.push({ at, kind, price, r: s.sl === null ? null : round(r) });
   };
   const entries = entriesOf(s);
 
@@ -237,13 +261,14 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
     if (s.status === "closed" || s.status === "cancelled") break;
     while (mi < sorted.length && sorted[mi]!.at <= c.time) s.currentSl = sorted[mi++]!.price;
 
-    const hitsSl = long ? c.low <= s.currentSl : c.high >= s.currentSl;
+    const stop = s.currentSl;
+    const hitsSl = stop !== null && (long ? c.low <= stop : c.high >= stop);
     const reaches = (tp: number) => (long ? c.high >= tp : c.low <= tp);
     // ET1 fills when the candle trades through it; ET2 (deeper) when the price comes down (up) to it.
     // An entry at or beyond the stop in force (the SL was moved past ET2) can no longer fill.
     const fills = (i: number) => {
       const p = entries[i]!.price;
-      if (long ? p <= s.currentSl : p >= s.currentSl) return false;
+      if (stop !== null && (long ? p <= stop : p >= stop)) return false;
       return i === 0 ? c.low <= p && p <= c.high : long ? c.low <= p : c.high >= p;
     };
 
@@ -264,7 +289,7 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
         s.status = "cancelled";
         s.exit = hitsSl ? "cancel_sl" : "cancel_tp";
         s.closedAt = c.time;
-        events.push({ at: c.time, kind: "cancelled", price: hitsSl ? s.currentSl : s.tps[0]!, r: null });
+        events.push({ at: c.time, kind: "cancelled", price: hitsSl ? stop! : s.tps[0]!, r: null });
       }
       continue;
     }
@@ -275,10 +300,11 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
       const best = bestR(s);
       if (best !== null && best >= BEST_MIN_R - EPS) {
         s.realizedR = s.realizedR + best;
+        s.realizedPct = s.realizedPct + pctOf(s, remainingOf(s), filled.avg, s.bestPrice!);
         events.push({ at: c.time, kind: "best", price: s.bestPrice!, r: round(best) });
         s.exit = "best";
       } else {
-        book(c.time, s.currentSl, "sl", pnl(s, remainingOf(s), filled.avg, s.currentSl));
+        book(c.time, stop!, "sl", remainingOf(s), filled.avg);
         s.exit = "sl";
       }
       s.status = "closed";
@@ -294,7 +320,7 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
     }
     while (s.tpHits < s.tps.length && reaches(s.tps[s.tpHits]!)) {
       const tp = s.tps[s.tpHits]!;
-      book(c.time, tp, "tp", pnl(s, filled.qty / s.tps.length, filled.avg, tp));
+      book(c.time, tp, "tp", filled.qty / s.tps.length, filled.avg);
       s.tpHits++;
     }
     if (s.tps.length > 0 && s.tpHits === s.tps.length) {
@@ -309,13 +335,15 @@ export function advance(start: EngineState, candles: CandlePoint[], moves: SlMov
 /** The admin closes a signal without TPs at its best price so far. */
 export function closeAtBest(start: EngineState, at: number): { state: EngineState; events: EngineEvent[] } {
   const s: EngineState = { ...start, tps: [...start.tps] };
-  const r = bestR(s);
-  if (r === null) return { state: s, events: [] };
+  if (s.tps.length > 0 || s.bestPrice === null || s.status !== "open") return { state: s, events: [] };
+  const { avg } = filledOf(s);
+  const r = pnl(s, remainingOf(s), avg, s.bestPrice);
   s.realizedR = s.realizedR + r;
+  s.realizedPct = s.realizedPct + pctOf(s, remainingOf(s), avg, s.bestPrice);
   s.status = "closed";
   s.exit = "best";
   s.closedAt = at;
-  return { state: s, events: [{ at, kind: "best", price: s.bestPrice!, r: round(r) }] };
+  return { state: s, events: [{ at, kind: "best", price: s.bestPrice, r: s.sl === null ? null : round(r) }] };
 }
 
 /** The admin closes what is left at `price` (an open signal) or cancels a pending one. */
@@ -328,29 +356,32 @@ export function closeByHand(start: EngineState, price: number | null, at: number
     return { state: s, events: [{ at, kind: "cancelled", price: price ?? s.entry, r: null }] };
   }
   if (s.status !== "open" || price === null) return { state: s, events: [] };
-  const r = pnl(s, remainingOf(s), filledOf(s).avg, price);
+  const { avg } = filledOf(s);
+  const r = pnl(s, remainingOf(s), avg, price);
   s.realizedR = s.realizedR + r;
+  s.realizedPct = s.realizedPct + pctOf(s, remainingOf(s), avg, price);
   s.status = "closed";
   s.exit = "manual";
   s.closedAt = at;
-  return { state: s, events: [{ at, kind: "manual_close", price, r: round(r) }] };
+  return { state: s, events: [{ at, kind: "manual_close", price, r: s.sl === null ? null : round(r) }] };
 }
 
 /**
  * Checks the price ladder: long SL < ET2 < ET1 < TP1 < TP2 < TP3, short the other way round.
- * `entry2` must already be ordered (orderEntries).
+ * `entry2` must already be ordered (orderEntries). Without an SL (null) the rest is checked.
  */
-export function ladderError(side: SignalSide, entry: number, sl: number, tps: number[], entry2: number | null = null): string | null {
-  const nums = [entry, sl, ...tps, ...(entry2 === null ? [] : [entry2])];
+export function ladderError(side: SignalSide, entry: number, sl: number | null, tps: number[], entry2: number | null = null): string | null {
+  const nums = [entry, ...(sl === null ? [] : [sl]), ...tps, ...(entry2 === null ? [] : [entry2])];
   if (nums.some((n) => !Number.isFinite(n) || n <= 0)) return "Giá phải là số dương.";
   if (tps.length > 3) return "Tối đa 3 TP.";
   if (entry2 !== null && entry2 === entry) return "Hai ET phải khác nhau.";
   const up = side === "long";
-  const ladder = [sl, ...(entry2 === null ? [] : [entry2]), entry, ...tps];
+  const ladder = [...(sl === null ? [] : [sl]), ...(entry2 === null ? [] : [entry2]), entry, ...tps];
   for (let i = 1; i < ladder.length; i++) {
     if (up ? !(ladder[i]! > ladder[i - 1]!) : !(ladder[i]! < ladder[i - 1]!)) {
       const et = entry2 === null ? "Entry" : up ? "ET2 < ET1" : "ET2 > ET1";
-      return up ? `Lệnh Long cần SL < ${et} < TP1 < TP2 < TP3.` : `Lệnh Short cần SL > ${et} > TP1 > TP2 > TP3.`;
+      const slPart = sl === null ? "" : up ? "SL < " : "SL > ";
+      return up ? `Lệnh Long cần ${slPart}${et} < TP1 < TP2 < TP3.` : `Lệnh Short cần ${slPart}${et} > TP1 > TP2 > TP3.`;
     }
   }
   return null;
@@ -363,7 +394,16 @@ export type Outcome = "win" | "loss" | "breakeven";
 
 export const outcomeOf = (r: number): Outcome => (r > EPS ? "win" : r < -EPS ? "loss" : "breakeven");
 
+/** Win, loss or breakeven of a signal: by R, or by percent when it has no SL. */
+export const signalOutcome = (s: Pick<Signal, "sl" | "realizedR" | "realizedPct">): Outcome =>
+  outcomeOf(s.sl === null ? s.realizedPct : s.realizedR);
+
 const fmtSignedR = (r: number) => `${r >= 0 ? "+" : "−"}${Math.abs(r).toFixed(2)}R`;
+const fmtSignedPct = (p: number) => `${p >= 0 ? "+" : "−"}${Math.abs(p).toFixed(2)}%`;
+
+/** A signal's result as shown: "+2.50R", or "+4.69%" for one without SL. */
+export const fmtResult = (s: Pick<Signal, "sl" | "realizedR" | "realizedPct">) =>
+  s.sl === null ? fmtSignedPct(s.realizedPct) : fmtSignedR(s.realizedR);
 
 /** Vietnamese status label of a signal, and the tone it is shown in. Shared by the page and the PDF. */
 export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "warn" | "muted" | "info" } {
@@ -372,15 +412,18 @@ export function statusOf(s: Signal): { label: string; tone: "ok" | "danger" | "w
     const parts = [
       ...(s.entry2 !== null && s.tpHits === 0 ? [`khớp ${s.entriesFilled}/2 ET`] : []),
       ...(s.tpHits ? [`${s.tpHits}/${s.tps.length} TP`] : []),
+      ...(s.sl === null ? ["chưa có SL"] : []),
       ...(s.tps.length === 0 ? ["chưa có TP"] : []),
-      ...(s.tps.length === 0 && s.bestPrice !== null ? [`tối đa ${fmtSignedR(bestR(s) ?? 0)}`] : []),
+      ...(s.tps.length === 0 && s.bestPrice !== null
+        ? [`tối đa ${s.sl === null ? fmtSignedPct(bestPct(s) ?? 0) : fmtSignedR(bestR(s) ?? 0)}`]
+        : []),
     ];
     return { label: ["Đang chạy", ...parts].join(" · "), tone: "info" };
   }
   if (s.status === "cancelled") {
     return { label: s.exit === "cancel_admin" ? "Đã huỷ" : s.exit === "cancel_sl" ? "Huỷ (chạm SL trước)" : "Huỷ (chạm TP1 trước)", tone: "muted" };
   }
-  const o = outcomeOf(s.realizedR);
+  const o = signalOutcome(s);
   const how =
     s.exit === "tp" ? "hết TP" : s.exit === "sl" ? (s.tpHits ? `${s.tpHits} TP rồi SL` : "SL") : s.exit === "best" ? "giá tốt nhất" : "đóng tay";
   return { label: `${o === "win" ? "Thắng" : o === "loss" ? "Thua" : "Hoà"} · ${how}`, tone: o === "win" ? "ok" : o === "loss" ? "danger" : "muted" };
@@ -396,6 +439,9 @@ export interface GroupStats {
 }
 
 export interface SignalStats {
+  /** Closed signals without SL (scored in percent): count and sum of their percents. */
+  pctClosed: number;
+  totalPct: number;
   closed: number;
   wins: number;
   losses: number;
@@ -450,8 +496,8 @@ function groupBy(closed: Signal[], keyOf: (s: Signal) => string): GroupStats[] {
   for (const s of closed) map.set(keyOf(s), [...(map.get(keyOf(s)) ?? []), s]);
   return [...map.entries()]
     .map(([key, list]) => {
-      const wins = list.filter((s) => outcomeOf(s.realizedR) === "win").length;
-      const losses = list.filter((s) => outcomeOf(s.realizedR) === "loss").length;
+      const wins = list.filter((s) => signalOutcome(s) === "win").length;
+      const losses = list.filter((s) => signalOutcome(s) === "loss").length;
       return {
         key,
         trades: list.length,
@@ -465,10 +511,15 @@ function groupBy(closed: Signal[], keyOf: (s: Signal) => string): GroupStats[] {
 }
 
 export function computeStats(signals: Signal[]): SignalStats {
-  const closed = signals.filter((s) => s.status === "closed").sort((a, b) => closedTime(a) - closedTime(b) || a.id - b.id);
+  // Every closed signal counts in the win/loss tallies; R figures use only those with an SL.
+  const allClosed = signals.filter((s) => s.status === "closed").sort((a, b) => closedTime(a) - closedTime(b) || a.id - b.id);
+  const closed = allClosed.filter((s) => s.sl !== null);
+  const pctOnly = allClosed.filter((s) => s.sl === null);
   const rs = closed.map((s) => s.realizedR);
   const winsR = rs.filter((r) => outcomeOf(r) === "win");
   const lossR = rs.filter((r) => outcomeOf(r) === "loss");
+  const pctWins = pctOnly.filter((s) => signalOutcome(s) === "win").length;
+  const pctLosses = pctOnly.filter((s) => signalOutcome(s) === "loss").length;
   const filled = signals.filter((s) => s.status === "open" || s.status === "closed");
 
   let cum = 0;
@@ -491,23 +542,23 @@ export function computeStats(signals: Signal[]): SignalStats {
   });
 
   const weekly: SignalStats["weekly"] = [];
-  if (closed.length) {
+  if (allClosed.length) {
     const byWeek = new Map<string, Signal[]>();
-    for (const s of closed) {
+    for (const s of allClosed) {
       const k = vnWeekKey(closedTime(s));
       byWeek.set(k, [...(byWeek.get(k) ?? []), s]);
     }
-    const first = Date.parse(vnWeekKey(closedTime(closed[0]!)));
-    const last = Date.parse(vnWeekKey(closedTime(closed[closed.length - 1]!)));
+    const first = Date.parse(vnWeekKey(closedTime(allClosed[0]!)));
+    const last = Date.parse(vnWeekKey(closedTime(allClosed[allClosed.length - 1]!)));
     for (let t = first; t <= last; t += 7 * DAY) {
       const k = new Date(t).toISOString().slice(0, 10);
       const list = byWeek.get(k) ?? [];
       weekly.push({
         week: k,
-        wins: list.filter((s) => outcomeOf(s.realizedR) === "win").length,
-        losses: list.filter((s) => outcomeOf(s.realizedR) === "loss").length,
-        breakeven: list.filter((s) => outcomeOf(s.realizedR) === "breakeven").length,
-        r: round(sum(list.map((s) => s.realizedR)), 2),
+        wins: list.filter((s) => signalOutcome(s) === "win").length,
+        losses: list.filter((s) => signalOutcome(s) === "loss").length,
+        breakeven: list.filter((s) => signalOutcome(s) === "breakeven").length,
+        r: round(sum(list.filter((s) => s.sl !== null).map((s) => s.realizedR)), 2),
       });
     }
   }
@@ -525,15 +576,19 @@ export function computeStats(signals: Signal[]): SignalStats {
 
   const avgWin = avg(winsR);
   const avgLoss = avg(lossR.map((r) => -r));
+  const wins = winsR.length + pctWins;
+  const losses = lossR.length + pctLosses;
   return {
-    closed: closed.length,
-    wins: winsR.length,
-    losses: lossR.length,
-    breakeven: closed.length - winsR.length - lossR.length,
+    pctClosed: pctOnly.length,
+    totalPct: round(sum(pctOnly.map((s) => s.realizedPct)), 2),
+    closed: allClosed.length,
+    wins,
+    losses,
+    breakeven: allClosed.length - wins - losses,
     open: signals.filter((s) => s.status === "open").length,
     pending: signals.filter((s) => s.status === "pending").length,
     cancelled: signals.filter((s) => s.status === "cancelled").length,
-    winrate: winsR.length + lossR.length ? winsR.length / (winsR.length + lossR.length) : null,
+    winrate: wins + losses ? wins / (wins + losses) : null,
     totalR: round(sum(rs), 2),
     avgR: avg(rs),
     avgWinR: avgWin,
@@ -547,8 +602,8 @@ export function computeStats(signals: Signal[]): SignalStats {
     equity,
     weekly,
     histogram,
-    bySymbol: groupBy(closed, (s) => s.symbol),
-    bySide: groupBy(closed, (s) => s.side),
-    byCaller: groupBy(closed, (s) => s.caller ?? NO_CALLER),
+    bySymbol: groupBy(allClosed, (s) => s.symbol),
+    bySide: groupBy(allClosed, (s) => s.side),
+    byCaller: groupBy(allClosed, (s) => s.caller ?? NO_CALLER),
   };
 }

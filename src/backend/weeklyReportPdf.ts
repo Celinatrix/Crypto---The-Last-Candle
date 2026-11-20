@@ -7,7 +7,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { plannedRR, statusOf, symbolLabel, type Signal } from "@/shared/signals";
+import { fmtResult, plannedRR, statusOf, symbolLabel, type Signal } from "@/shared/signals";
 import { vnClock, vnParts, vnShortDate } from "@/shared/vnTime";
 import type { WeekSummary } from "@/shared/weeklyReport";
 
@@ -140,7 +140,7 @@ const COLUMNS: Column[] = [
     right: true,
     value: (s) => (s.entry2 === null ? fmtPrice(s.entry) : `${fmtPrice(s.entry)} · ${fmtPrice(s.entry2)}`),
   },
-  { label: "SL", width: 62, right: true, value: (s) => fmtPrice(s.sl) },
+  { label: "SL", width: 62, right: true, value: (s) => (s.sl === null ? "—" : fmtPrice(s.sl)) },
   { label: "TP", width: 160, right: true, value: (s) => (s.tps.length ? s.tps.map(fmtPrice).join(" · ") : "—") },
   { label: "R:R", width: 36, right: true, value: (s) => plannedRR(s)?.toFixed(2) ?? "—" },
   { label: "Trạng thái", width: 104, value: (s) => statusOf(s).label },
@@ -148,8 +148,8 @@ const COLUMNS: Column[] = [
     label: "Kết quả",
     width: 48,
     right: true,
-    value: (s) => (s.status === "closed" || (s.status === "open" && s.tpHits > 0) ? fmtR(s.realizedR) : "—"),
-    color: (s) => (s.status === "closed" ? rColor(s.realizedR) : MUTED),
+    value: (s) => (s.status === "closed" || (s.status === "open" && s.tpHits > 0) ? fmtResult(s) : "—"),
+    color: (s) => (s.status === "closed" ? (s.sl === null ? rColor(s.realizedPct) : rColor(s.realizedR)) : MUTED),
   },
 ];
 

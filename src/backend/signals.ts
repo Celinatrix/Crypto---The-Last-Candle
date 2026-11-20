@@ -151,14 +151,15 @@ interface SignalRow {
   entry: number;
   entry2: number | null;
   entries_filled: number;
-  sl: number;
-  current_sl: number;
+  sl: number | null;
+  current_sl: number | null;
   tps: number[];
   note: string | null;
   caller: string | null;
   status: SignalStatus;
   tp_hits: number;
   realized_r: number;
+  realized_pct: number;
   exit_reason: SignalExit | null;
   created_at: string;
   filled_at: string | null;
@@ -176,7 +177,7 @@ interface EventRow {
 }
 
 const COLUMNS =
-  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,caller,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until,best_price";
+  "id,symbol,side,order_type,entry,entry2,entries_filled,sl,current_sl,tps,note,caller,status,tp_hits,realized_r,exit_reason,created_at,filled_at,closed_at,checked_until,best_price,realized_pct";
 
 const num = (v: unknown) => Number(v);
 
@@ -186,12 +187,13 @@ function toState(row: SignalRow): EngineState {
     entry: num(row.entry),
     entry2: row.entry2 === null ? null : num(row.entry2),
     entriesFilled: row.entries_filled,
-    sl: num(row.sl),
+    sl: row.sl === null ? null : num(row.sl),
     tps: row.tps.map(num),
     status: row.status,
-    currentSl: num(row.current_sl),
+    currentSl: row.current_sl === null ? null : num(row.current_sl),
     tpHits: row.tp_hits,
     realizedR: num(row.realized_r),
+    realizedPct: num(row.realized_pct),
     exit: row.exit_reason,
     filledAt: row.filled_at ? Date.parse(row.filled_at) : null,
     closedAt: row.closed_at ? Date.parse(row.closed_at) : null,
@@ -212,6 +214,7 @@ async function apply(row: SignalRow, state: EngineState, checkedUntil: number, e
       tp_hits: state.tpHits,
       entries_filled: state.entriesFilled,
       realized_r: state.realizedR,
+      realized_pct: state.realizedPct,
       exit_reason: state.exit,
       filled_at: iso(state.filledAt),
       closed_at: iso(state.closedAt),
@@ -262,8 +265,8 @@ export async function listSignals(limit = 500, posted?: { from: number; to: numb
       entry: num(row.entry),
       entry2: row.entry2 === null ? null : num(row.entry2),
       entriesFilled: row.entries_filled,
-      sl: num(row.sl),
-      currentSl: lastMove?.price ?? num(row.current_sl),
+      sl: row.sl === null ? null : num(row.sl),
+      currentSl: lastMove?.price ?? (row.current_sl === null ? null : num(row.current_sl)),
       tps: row.tps.map(num),
       note: row.note,
       caller: row.caller,
@@ -273,6 +276,7 @@ export async function listSignals(limit = 500, posted?: { from: number; to: numb
       closedAt: row.closed_at,
       tpHits: row.tp_hits,
       realizedR: num(row.realized_r),
+      realizedPct: num(row.realized_pct),
       bestPrice: row.best_price === null ? null : num(row.best_price),
       exit: row.exit_reason,
       events: ev,
@@ -350,7 +354,8 @@ export interface NewSignal {
   entry: number;
   /** Optional second entry, limit signals only; either order is accepted. */
   entry2: number | null;
-  sl: number;
+  /** Null: no SL, scored in percent until one is added. */
+  sl: number | null;
   tps: number[];
   note: string | null;
   /** Who called it in the group. */
@@ -389,8 +394,10 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
   const long = input.side === "long";
   const tp1 = input.tps[0];
   // Already past the SL or TP1 when called: the replay would close or cancel it on the first candle.
-  if (long ? price <= input.sl || (tp1 !== undefined && price >= tp1) : price >= input.sl || (tp1 !== undefined && price <= tp1)) {
-    throw new SignalInputError(`Giá ${when} (${price}) đã vượt SL${tp1 === undefined ? "" : " hoặc TP1"}.`);
+  const pastSl = input.sl !== null && (long ? price <= input.sl : price >= input.sl);
+  const pastTp = tp1 !== undefined && (long ? price >= tp1 : price <= tp1);
+  if (pastSl || pastTp) {
+    throw new SignalInputError(`Giá ${when} (${price}) đã vượt ${pastSl ? "SL" : "TP1"}.`);
   }
   if (input.orderType === "market" && Math.abs(entry - price) / price > MARKET_TOLERANCE) {
     const off = ((Math.abs(entry - price) / price) * 100).toFixed(1);
@@ -462,13 +469,25 @@ export async function moveStop(id: number, price: number, by: string): Promise<v
   if (row.status !== "pending" && row.status !== "open") throw new SignalInputError(STILL_RUNNING);
   const s = toState(row);
   const long = s.side === "long";
-  const nextTp = s.tps[s.tpHits]!;
-  if (!(price > 0) || (long ? price >= nextTp : price <= nextTp)) {
+  const nextTp = s.tps[s.tpHits];
+  if (!(price > 0) || (nextTp !== undefined && (long ? price >= nextTp : price <= nextTp))) {
     throw new SignalInputError(long ? "SL mới phải thấp hơn TP kế tiếp." : "SL mới phải cao hơn TP kế tiếp.");
   }
   const live = await fetchPrice(row.symbol);
   if (live !== null && (long ? price >= live : price <= live)) {
     throw new SignalInputError(`SL mới đã vượt giá hiện tại (${live}).`);
+  }
+  if (row.sl === null) {
+    // First SL of a signal posted without one: it becomes the original stop (1R), so the signal is
+    // scored in R from here on. Only before any TP, so no part of it was booked in percent alone.
+    if (row.tp_hits > 0) throw new SignalInputError("Lệnh đã chạm TP, không thêm SL gốc được nữa.");
+    const ladder = ladderError(s.side, s.entry, price, s.tps.slice(s.tpHits), s.entry2);
+    if (ladder) throw new SignalInputError(ladder);
+    await update("signals", `id=${eq(id)}&sl=is.null&checked_until=eq.${encodeURIComponent(row.checked_until)}`, { sl: price, current_sl: price });
+    const after = await loadRow(id);
+    if (!after || after.sl === null || num(after.sl) !== price) throw new SignalInputError("Tín hiệu vừa được cập nhật. Hãy thử lại.");
+    await insertOne("signal_events", { signal_id: id, at: new Date().toISOString(), kind: "sl_moved", price, by });
+    return;
   }
   // The stop moves from the next full minute: the event is replayed like any other.
   const ok = await apply(row, s, Date.parse(row.checked_until), [{ at: Date.now(), kind: "sl_moved", price, r: null, by }]);
