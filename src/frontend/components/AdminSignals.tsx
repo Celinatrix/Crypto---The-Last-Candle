@@ -305,9 +305,12 @@ function SignalForm({
     const s = symbol;
     const res = await fetch(`/api/admin/signals?price=${encodeURIComponent(s)}`, { credentials: "same-origin", cache: "no-store" });
     if (res.status === 401) return onSignedOut();
-    const body = (await res.json().catch(() => ({}))) as { price?: number; error?: string };
+    const body = (await res.json().catch(() => ({}))) as { price?: number; symbol?: string; error?: string };
     if (!res.ok || !body.price) return setError(body.error ?? "Không lấy được giá.");
-    setLive({ symbol: s, price: body.price });
+    const traded = body.symbol ?? s;
+    // BingX lists some coins under another contract (LIT → LIGHTER-USDT): use that one.
+    if (traded !== s) setBase(traded.replace(/-USDT$/, ""));
+    setLive({ symbol: traded, price: body.price });
     if (orderType === "market" || !entry) setEntry(String(body.price));
   }
 

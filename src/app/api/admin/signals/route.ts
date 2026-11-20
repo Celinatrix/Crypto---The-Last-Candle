@@ -1,7 +1,8 @@
 /**
  * Admin signals.
  *   GET  /api/admin/signals             every signal, replayed up to the last closed minute
- *   GET  /api/admin/signals?price=SYM   BingX last price for the form ({ price } or 404)
+ *   GET  /api/admin/signals?price=SYM   BingX last price for the form ({ price, symbol } or 404; symbol is the
+ *                                       contract actually traded, e.g. LIT-USDT → LIGHTER-USDT)
  *   GET  /api/admin/signals?candles=ID  BingX candles around one signal, for its chart
  *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, entry2?, sl, tps, note, caller?, postedAt? }
  *                                       (entry2: optional second entry, limit only; postedAt: ISO time of
@@ -22,7 +23,7 @@ import {
   closeSignalAtBest,
   createSignal,
   evaluateIfStale,
-  fetchPrice,
+  contractFor,
   getSignal,
   listSignals,
   moveStop,
@@ -47,8 +48,10 @@ export async function GET(req: NextRequest) {
     if (symbol !== null) {
       const s = symbol.trim().toUpperCase();
       if (!SYMBOL_RE.test(s)) return fail("Cặp coin phải có dạng BTC-USDT.", 400);
-      const price = await fetchPrice(s);
-      return price === null ? fail(`BingX không có hợp đồng ${s}.`, 404) : NextResponse.json({ ok: true, price });
+      const contract = await contractFor(s);
+      return contract === null
+        ? fail(`BingX không có hoặc đã ngừng giao dịch hợp đồng ${s}.`, 404)
+        : NextResponse.json({ ok: true, price: contract.price, symbol: contract.symbol });
     }
     const candlesId = req.nextUrl.searchParams.get("candles");
     if (candlesId !== null) {
