@@ -47,13 +47,45 @@ async function bingx<T>(path: string): Promise<{ code: number; msg?: string; dat
   return (await res.json()) as { code: number; msg?: string; data?: T };
 }
 
-/** Last traded price, or null when BingX has no such perpetual contract. */
+/** BingX codes for a symbol it does not list (109425) or no longer trades (109418, "offline"). */
+const NO_CONTRACT = new Set([109425, 109418]);
+
+/** Last traded price, or null when BingX has no such perpetual contract trading. */
 export async function fetchPrice(symbol: string): Promise<number | null> {
   const body = await bingx<{ price: string }>(`/openApi/swap/v2/quote/price?symbol=${encodeURIComponent(symbol)}`);
-  if (body.code === 109425) return null;
+  if (NO_CONTRACT.has(body.code)) return null;
   const price = Number(body.data?.price);
   if (body.code !== 0 || !(price > 0)) throw new Error(`BingX price ${symbol}: code ${body.code} ${body.msg ?? ""}`.trim());
   return price;
+}
+
+let contractsCache: { at: number; byDisplay: Map<string, string> } | null = null;
+
+/**
+ * The contract BingX lists under another symbol: e.g. GRAM trades as GRAMTON-USDT and LIT as
+ * LIGHTER-USDT, each with the display name "<COIN>-USDT". Cached for an hour; null when none.
+ */
+export async function symbolByDisplayName(symbol: string): Promise<string | null> {
+  if (!contractsCache || Date.now() - contractsCache.at > 3_600_000) {
+    const body = await bingx<{ symbol: string; displayName?: string; status?: number }[]>("/openApi/swap/v2/quote/contracts");
+    if (body.code !== 0 || !Array.isArray(body.data)) return null;
+    const byDisplay = new Map<string, string>();
+    for (const c of body.data) {
+      if (c.displayName && c.displayName !== c.symbol && c.status === 1) byDisplay.set(c.displayName.toUpperCase(), c.symbol);
+    }
+    contractsCache = { at: Date.now(), byDisplay };
+  }
+  return contractsCache.byDisplay.get(symbol.toUpperCase()) ?? null;
+}
+
+/** The trading contract for a pair as people write it ("LIT-USDT" → LIGHTER-USDT), with its price. */
+export async function contractFor(symbol: string): Promise<{ symbol: string; price: number } | null> {
+  const price = await fetchPrice(symbol);
+  if (price !== null) return { symbol, price };
+  const listed = await symbolByDisplayName(symbol).catch(() => null);
+  if (!listed) return null;
+  const listedPrice = await fetchPrice(listed);
+  return listedPrice === null ? null : { symbol: listed, price: listedPrice };
 }
 
 const toCandle = (k: RawKline): CandlePoint => ({
@@ -309,8 +341,8 @@ export class SignalInputError extends Error {}
 const MARKET_TOLERANCE = 0.03;
 
 export async function createSignal(input: NewSignal, by: string): Promise<number> {
-  const symbol = input.symbol.trim().toUpperCase();
-  if (!SYMBOL_RE.test(symbol)) throw new SignalInputError("Cặp coin phải có dạng BTC-USDT.");
+  const written = input.symbol.trim().toUpperCase();
+  if (!SYMBOL_RE.test(written)) throw new SignalInputError("Cặp coin phải có dạng BTC-USDT.");
   if (input.entry2 !== null && input.orderType !== "limit") throw new SignalInputError("Chỉ lệnh Limit mới có 2 ET.");
   const [entry, entry2] = orderEntries(input.side, input.entry, input.entry2);
   const ladder = ladderError(input.side, entry, input.sl, input.tps, entry2);
@@ -324,8 +356,9 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
   if (backdated && now - at > MAX_BACKDATE_MS) throw new SignalInputError("Giờ gọi lệnh chỉ được lùi tối đa 14 ngày.");
 
   // The checks use the price when the signal was called: now, or the minute of the chat message.
-  const live = await fetchPrice(symbol);
-  if (live === null) throw new SignalInputError(`BingX không có hợp đồng ${symbol}.`);
+  const contract = await contractFor(written);
+  if (contract === null) throw new SignalInputError(`BingX không có hoặc đã ngừng giao dịch hợp đồng ${written}.`);
+  const { symbol, price: live } = contract;
   const price = backdated ? await priceAt(symbol, at) : live;
   if (price === null) throw new SignalInputError(`BingX không có giá ${symbol} lúc gọi lệnh.`);
   const when = backdated ? "lúc gọi lệnh" : "hiện tại";

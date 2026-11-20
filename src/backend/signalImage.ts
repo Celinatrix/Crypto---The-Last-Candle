@@ -4,7 +4,7 @@
  * posts it through the normal create action, so every usual check still applies.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { fetchPrice, priceAt } from "./signals";
+import { fetchPrice, priceAt, symbolByDisplayName } from "./signals";
 import { KNOWN_CALLERS, MAX_BACKDATE_MS, MINUTE_MS, type SignalOrderType, type SignalSide } from "@/shared/signals";
 
 const MODEL = "claude-opus-5-5";
@@ -168,30 +168,12 @@ const cleanBase = (coin: string) => {
   return c.length > 4 && c.endsWith("USDT") ? c.slice(0, -4) : c;
 };
 
-let contractsCache: { at: number; byDisplay: Map<string, string> } | null = null;
-
-/**
- * BingX contract symbol for a pair shown under another name: GRAM is listed as GRAMTON-USDT with the
- * display name "GRAM-USDT". Cached for an hour; null when no contract shows that name.
- */
-async function symbolByDisplayName(base: string): Promise<string | null> {
-  if (!contractsCache || Date.now() - contractsCache.at > 3_600_000) {
-    const res = await fetch("https://open-api.bingx.com/openApi/swap/v2/quote/contracts", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-    const body = (await res.json()) as { code: number; data?: { symbol: string; displayName?: string }[] };
-    if (body.code !== 0 || !Array.isArray(body.data)) return null;
-    const byDisplay = new Map<string, string>();
-    for (const c of body.data) if (c.displayName && c.displayName !== c.symbol) byDisplay.set(c.displayName.toUpperCase(), c.symbol);
-    contractsCache = { at: Date.now(), byDisplay };
-  }
-  return contractsCache.byDisplay.get(`${base}-USDT`) ?? null;
-}
-
 /** Resolves the BingX contract, trying its display name, then a known alias, when the written name does not exist. */
 async function resolveBase(coin: string, warnings: string[]): Promise<{ base: string; price: number | null }> {
   const written = cleanBase(coin);
   const price = written ? await fetchPrice(`${written}-USDT`) : null;
   if (price !== null) return { base: written, price };
-  const listed = written ? await symbolByDisplayName(written).catch(() => null) : null;
+  const listed = written ? await symbolByDisplayName(`${written}-USDT`).catch(() => null) : null;
   if (listed) {
     const listedPrice = await fetchPrice(listed);
     if (listedPrice !== null) {
