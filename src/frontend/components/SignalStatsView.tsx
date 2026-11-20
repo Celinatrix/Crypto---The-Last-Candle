@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnsChart, Figure } from "@/frontend/components/AdminCharts";
 import { CandleChart, EquityChart, EVENT_LABEL, RHistogram, WinrateBars } from "@/frontend/components/SignalCharts";
 import { fmtDateTimeShort, fmtDayFull, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { computeStats, NO_CALLER, plannedRR, statusOf, type Signal, type SignalCandlesResponse } from "@/shared/signals";
+import { computeStats, NO_CALLER, plannedRR, statusOf, symbolLabel, type Signal, type SignalCandlesResponse } from "@/shared/signals";
 
 type Period = "30" | "90" | "180" | "all";
 type SideFilter = "all" | "long" | "short";
@@ -87,7 +87,7 @@ export default function SignalStatsView({
           <option value="all">Tất cả cặp</option>
           {symbols.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {symbolLabel(s)}
             </option>
           ))}
         </select>
@@ -157,7 +157,7 @@ export default function SignalStatsView({
                   <tbody>
                     {st.equity.map((p) => (
                       <tr key={p.id}>
-                        <td data-label="Lệnh" className="num">#{p.id} {p.symbol}</td>
+                        <td data-label="Lệnh" className="num">#{p.id} {symbolLabel(p.symbol)}</td>
                         <td data-label="Đóng lúc" className="num">{fmtDateTimeShort(Date.parse(p.at))}</td>
                         <td data-label="R" className="is-num num">{fmtR(p.r)}</td>
                         <td data-label="Cộng dồn" className="is-num num">{fmtR(p.cum)}</td>
@@ -236,7 +236,7 @@ export default function SignalStatsView({
             <p className="sig__group">Theo hướng lệnh</p>
             <WinrateBars rows={st.bySide} labelOf={(k) => SIDE_LABEL[k as "long" | "short"] ?? k} />
             <p className="sig__group">Theo cặp coin</p>
-            <WinrateBars rows={st.bySymbol} labelOf={(k) => k.replace("-USDT", "")} />
+            <WinrateBars rows={st.bySymbol} labelOf={(k) => symbolLabel(k).replace("-USDT", "")} />
           </Figure>
         </div>
       )}
@@ -309,7 +309,7 @@ function SignalRow({
         </td>
         <td data-label="Gọi lúc" className="num">{fmtDateTimeShort(Date.parse(s.createdAt))}</td>
         <td data-label="Người gọi">{s.caller ?? "—"}</td>
-        <td data-label="Cặp" className="num">{s.symbol}</td>
+        <td data-label="Cặp" className="num">{symbolLabel(s.symbol)}</td>
         <td data-label="Lệnh">
           <span className={`sig__side is-${s.side}`}>{SIDE_LABEL[s.side]}</span> <span className="sig__type">{s.orderType === "market" ? "Market" : "Limit"}</span>
         </td>
@@ -360,7 +360,7 @@ function SignalDetail({ s, loadCandles }: { s: Signal; loadCandles: (id: number)
       {s.note && <p className="sig__note">{s.note}</p>}
       <figure className="viz">
         <h4 className="viz__title">
-          {s.symbol} · nến {data?.interval ?? "…"} quanh tín hiệu #{s.id}
+          {symbolLabel(s.symbol)} · nến {data?.interval ?? "…"} quanh tín hiệu #{s.id}
         </h4>
         {error ? (
           <div className="alert alert--danger" role="alert">{error}</div>

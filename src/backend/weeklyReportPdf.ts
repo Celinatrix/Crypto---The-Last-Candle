@@ -7,7 +7,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import { plannedRR, statusOf, type Signal } from "@/shared/signals";
+import { plannedRR, statusOf, symbolLabel, type Signal } from "@/shared/signals";
 import { vnClock, vnParts, vnShortDate } from "@/shared/vnTime";
 import type { WeekSummary } from "@/shared/weeklyReport";
 
@@ -132,7 +132,7 @@ interface Column {
 const COLUMNS: Column[] = [
   { label: "#", width: 30, value: (s) => `#${s.id}` },
   { label: "Đăng lúc", width: 66, value: (s) => `${vnClock(Date.parse(s.createdAt))} ${vnShortDate(Date.parse(s.createdAt))}` },
-  { label: "Cặp", width: 66, value: (s) => s.symbol.replace("-", " | ") },
+  { label: "Cặp", width: 66, value: (s) => symbolLabel(s.symbol).replace("-", " | ") },
   { label: "Lệnh", width: 72, value: (s) => `${s.side === "long" ? "Long" : "Short"} · ${s.orderType === "market" ? "Market" : "Limit"}` },
   {
     label: "Entry",

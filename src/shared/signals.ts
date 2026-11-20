@@ -23,6 +23,34 @@
  * - A signal is a win when its total R is above 0, a loss below 0, breakeven at 0.
  */
 
+/**
+ * Commodities as the group writes them → BingX TradFi perpetuals (the gold, silver and oil the admin
+ * calls on). Crypto gold tokens (XAUT, PAXG) trade at a different price, so they are not used.
+ */
+export const COMMODITY_CONTRACTS: Record<string, string> = {
+  GOLD: "NCCOGOLD2USD-USDT",
+  XAU: "NCCOGOLD2USD-USDT",
+  XAUUSD: "NCCOGOLD2USD-USDT",
+  SILVER: "NCCOXAG2USD-USDT",
+  XAG: "NCCOXAG2USD-USDT",
+  XAGUSD: "NCCOXAG2USD-USDT",
+  OIL: "NCCO1OILWTI2USD-USDT",
+  WTI: "NCCO1OILWTI2USD-USDT",
+  USOIL: "NCCO1OILWTI2USD-USDT",
+  BRENT: "NCCO1OILBRENT2USD-USDT",
+  UKOIL: "NCCO1OILBRENT2USD-USDT",
+};
+
+const CONTRACT_LABELS: Record<string, string> = {
+  "NCCOGOLD2USD-USDT": "GOLD-USDT",
+  "NCCOXAG2USD-USDT": "SILVER-USDT",
+  "NCCO1OILWTI2USD-USDT": "OIL WTI-USDT",
+  "NCCO1OILBRENT2USD-USDT": "OIL BRENT-USDT",
+};
+
+/** How a contract is shown: "NCCOGOLD2USD-USDT" → "GOLD-USDT"; crypto pairs as they are. */
+export const symbolLabel = (symbol: string) => CONTRACT_LABELS[symbol] ?? symbol;
+
 /** The people who usually call signals in the group, offered first in the admin form. */
 export const KNOWN_CALLERS = ["Phương Thắng", "Thanh Kiệt"] as const;
 /** Label for signals without a recorded caller. */

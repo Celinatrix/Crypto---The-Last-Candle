@@ -10,6 +10,7 @@ import { eq, insertOne, rpc, select, update } from "./db";
 import {
   advance,
   closeAtBest,
+  COMMODITY_CONTRACTS,
   closeByHand,
   ladderError,
   MAX_BACKDATE_MS,
@@ -80,6 +81,11 @@ export async function symbolByDisplayName(symbol: string): Promise<string | null
 
 /** The trading contract for a pair as people write it ("LIT-USDT" → LIGHTER-USDT), with its price. */
 export async function contractFor(symbol: string): Promise<{ symbol: string; price: number } | null> {
+  const commodity = COMMODITY_CONTRACTS[symbol.replace(/-USDT$/, "")];
+  if (commodity) {
+    const commodityPrice = await fetchPrice(commodity);
+    if (commodityPrice !== null) return { symbol: commodity, price: commodityPrice };
+  }
   const price = await fetchPrice(symbol);
   if (price !== null) return { symbol, price };
   const listed = await symbolByDisplayName(symbol).catch(() => null);
