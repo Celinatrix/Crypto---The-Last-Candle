@@ -4,7 +4,7 @@
  * posts it through the normal create action, so every usual check still applies.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { fetchPrice, priceAt, symbolByDisplayName } from "./signals";
+import { contractFor, priceAt } from "./signals";
 import { KNOWN_CALLERS, MAX_BACKDATE_MS, MINUTE_MS, type SignalOrderType, type SignalSide } from "@/shared/signals";
 
 const MODEL = "claude-opus-5-5";
@@ -18,8 +18,6 @@ export interface SignalImage {
   data: string;
 }
 
-/** Names in chat that are not BingX contract names. The admin is told when one is swapped. */
-const ALIASES: Record<string, string> = { GOLD: "XAUT", XAU: "XAUT", XAUUSD: "XAUT", SILVER: "XAG", OIL: "WTI" };
 
 export interface SignalDraft {
   /** Base coin as BingX names it, e.g. "BTC" (quote is always USDT) */
@@ -168,30 +166,17 @@ const cleanBase = (coin: string) => {
   return c.length > 4 && c.endsWith("USDT") ? c.slice(0, -4) : c;
 };
 
-/** Resolves the BingX contract, trying its display name, then a known alias, when the written name does not exist. */
+/** Resolves the contract BingX trades for a written coin (GOLD → its gold perpetual, LIT → LIGHTER-USDT). */
 async function resolveBase(coin: string, warnings: string[]): Promise<{ base: string; price: number | null }> {
   const written = cleanBase(coin);
-  const price = written ? await fetchPrice(`${written}-USDT`) : null;
-  if (price !== null) return { base: written, price };
-  const listed = written ? await symbolByDisplayName(`${written}-USDT`).catch(() => null) : null;
-  if (listed) {
-    const listedPrice = await fetchPrice(listed);
-    if (listedPrice !== null) {
-      const base = listed.replace(/-USDT$/, "");
-      warnings.push(`Trên BingX, ${written}-USDT có mã hợp đồng ${listed}: đã dùng mã này.`);
-      return { base, price: listedPrice };
-    }
+  const found = written ? await contractFor(`${written}-USDT`) : null;
+  if (found === null) {
+    warnings.push(`BingX không có hoặc đã ngừng giao dịch hợp đồng ${written || coin}-USDT. Sửa tên coin trước khi đăng.`);
+    return { base: written, price: null };
   }
-  const alias = ALIASES[written];
-  if (alias) {
-    const aliasPrice = await fetchPrice(`${alias}-USDT`);
-    if (aliasPrice !== null) {
-      warnings.push(`BingX không có ${written}-USDT, đã đổi sang ${alias}-USDT. Kiểm tra lại cặp.`);
-      return { base: alias, price: aliasPrice };
-    }
-  }
-  warnings.push(`BingX không có hợp đồng ${written || coin}-USDT. Sửa tên coin trước khi đăng.`);
-  return { base: written, price: null };
+  const base = found.symbol.replace(/-USDT$/, "");
+  if (base !== written) warnings.push(`${written}-USDT trên BingX là hợp đồng ${found.symbol}: đã dùng mã này.`);
+  return { base, price: found.price };
 }
 
 /**

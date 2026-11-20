@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Legend, useWidth } from "@/frontend/components/AdminCharts";
 import { fmtDate, fmtDateTimeShort, fmtPct, fmtPrice, fmtR } from "@/frontend/lib/format";
-import type { CandlePoint, GroupStats, Signal, SignalStats } from "@/shared/signals";
+import { symbolLabel, type CandlePoint, type GroupStats, type Signal, type SignalStats } from "@/shared/signals";
 
 /**
  * Hand-drawn SVG charts for the signal statistics, in the same language as AdminCharts: one y-axis,
@@ -120,7 +120,7 @@ export function EquityChart({ equity }: { equity: SignalStats["equity"] }) {
           ) : (
             <>
               <p className="viz__tip-day num">
-                #{p.id} {p.symbol} · {fmtDateTimeShort(Date.parse(p.at))}
+                #{p.id} {symbolLabel(p.symbol)} · {fmtDateTimeShort(Date.parse(p.at))}
               </p>
               <p className="viz__tip-row">
                 <span>Lệnh này</span>
@@ -343,7 +343,7 @@ export function CandleChart({ signal, candles, interval }: { signal: Signal; can
           height={C_H}
           role="img"
           tabIndex={0}
-          aria-label={`Biểu đồ nến ${interval} của ${signal.symbol} quanh tín hiệu #${signal.id}, kèm các mức Entry, SL và TP.`}
+          aria-label={`Biểu đồ nến ${interval} của ${symbolLabel(signal.symbol)} quanh tín hiệu #${signal.id}, kèm các mức Entry, SL và TP.`}
           onPointerMove={(e) => setActive(indexAt(e))}
           onPointerDown={(e) => setActive(indexAt(e))}
           onPointerLeave={() => setActive(null)}

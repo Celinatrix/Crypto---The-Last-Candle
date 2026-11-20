@@ -12,6 +12,7 @@ import {
   bestR,
   KNOWN_CALLERS,
   ladderError,
+  symbolLabel,
   orderEntries,
   plannedRR,
   rAt,
@@ -561,7 +562,7 @@ function ActiveCard({
     <li className="admin__card sig-card">
       <div className="admin__card-body">
         <p className="admin__uid num">
-          #{s.id} {s.symbol} <span className={`sig__side is-${s.side}`}>{s.side === "long" ? "Long" : "Short"}</span>{" "}
+          #{s.id} {symbolLabel(s.symbol)} <span className={`sig__side is-${s.side}`}>{s.side === "long" ? "Long" : "Short"}</span>{" "}
           <span className="sig__type">{s.orderType === "market" ? "Market" : "Limit"}</span>
         </p>
         <p className="admin__sub num">
