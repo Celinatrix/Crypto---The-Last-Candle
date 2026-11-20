@@ -273,7 +273,6 @@ function SignalForm({
     !Number.isNaN(nums.entry) &&
     !(nums.entry2 !== null && Number.isNaN(nums.entry2)) &&
     !Number.isNaN(nums.sl) &&
-    nums.tps.length > 0 &&
     nums.tps.length === filledTps.length;
   const [et1, et2] = orderEntries(side, nums.entry, nums.entry2);
   const ladder = ready ? ladderError(side, et1, nums.sl, nums.tps, et2) : null;
@@ -397,7 +396,10 @@ function SignalForm({
         ))}
         {tps.map((t, i) => (
           <div className="field" key={i}>
-            <label className="label" htmlFor={`sig-tp${i}`}>TP{i + 1}{i > 0 && <span className="sig__optional"> (tuỳ chọn)</span>}</label>
+            <label className="label" htmlFor={`sig-tp${i}`}>
+              TP{i + 1}
+              <span className="sig__optional"> {i === 0 ? "(có thể thêm sau)" : "(tuỳ chọn)"}</span>
+            </label>
             <input
               id={`sig-tp${i}`}
               className="input input--mono"
@@ -451,8 +453,11 @@ function SignalForm({
           {preview.entry2 !== null &&
             `ET1 ${fmtPrice(preview.entry)} · ET2 ${fmtPrice(preview.entry2)} (mỗi ET ½ vị thế) · Giá TB ${fmtPrice(avgEntry(preview))} · `}
           1R = {fmtPrice(Math.abs(avgEntry(preview) - preview.sl))} ({((Math.abs(avgEntry(preview) - preview.sl) / avgEntry(preview)) * 100).toFixed(2)}%) ·{" "}
-          {preview.tps.map((tp, i) => `TP${i + 1} ${fmtR(rAt(preview, tp), 2)}`).join(" · ")} · R:R kế hoạch 1 : {plannedRR(preview).toFixed(2)} · mỗi TP
-          chốt {preview.tps.length === 1 ? "100%" : `1/${preview.tps.length}`}
+          {preview.tps.length === 0
+            ? "Chưa có TP: lệnh chạy tới khi chạm SL hoặc đóng tay, bổ sung TP sau ở mục Đang chạy"
+            : `${preview.tps.map((tp, i) => `TP${i + 1} ${fmtR(rAt(preview, tp), 2)}`).join(" · ")} · R:R kế hoạch 1 : ${plannedRR(preview)!.toFixed(2)} · mỗi TP chốt ${
+                preview.tps.length === 1 ? "100%" : `1/${preview.tps.length}`
+              }`}
         </p>
       )}
       {error && <div className="alert alert--danger" role="alert">{error}</div>}
@@ -477,6 +482,7 @@ function ActiveCard({
   onSignedOut: () => void;
 }) {
   const [slInput, setSlInput] = useState("");
+  const [tpInput, setTpInput] = useState("");
   const [closeInput, setCloseInput] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -491,6 +497,7 @@ function ActiveCard({
       onNotice(r.ok ? { tone: "ok", text: done } : { tone: "danger", text: r.error ?? "Đã có lỗi xảy ra." });
       if (r.ok) {
         setSlInput("");
+        setTpInput("");
         setCloseInput("");
       }
       await reload();
@@ -503,6 +510,11 @@ function ActiveCard({
   }
 
   const slPrice = parsePrice(slInput);
+  // "0.08, 0.075" or "0,08 0,075": TPs separated by spaces, ";" or "/" (a "," between numbers too).
+  const tpParts = tpInput.trim() ? tpInput.trim().split(/\s*[;/\s]\s*|,\s+/).filter(Boolean) : [];
+  const newTps = tpParts.map(parsePrice);
+  const tpsOk = newTps.length >= 1 && newTps.length <= 3 && newTps.every((n) => !Number.isNaN(n));
+  const canSetTps = s.tpHits === 0;
   const closePrice = parsePrice(closeInput);
   const pending = s.status === "pending";
 
@@ -516,7 +528,7 @@ function ActiveCard({
         <p className="admin__sub num">
           {s.entry2 === null ? `Entry ${fmtPrice(s.entry)}` : `ET ${fmtPrice(s.entry)} / ${fmtPrice(s.entry2)} (khớp ${s.entriesFilled}/2)`} · SL{" "}
           {fmtPrice(s.currentSl)}
-          {s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.map(fmtPrice).join(" / ")}
+          {s.currentSl !== s.sl && ` (gốc ${fmtPrice(s.sl)})`} · TP {s.tps.length ? s.tps.map(fmtPrice).join(" / ") : "chưa có"}
         </p>
         <p className="admin__sub num">
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span> · {s.caller ? `${s.caller} gọi` : "Gọi"} {fmtDateTimeShort(Date.parse(s.createdAt))}
@@ -524,6 +536,26 @@ function ActiveCard({
         </p>
       </div>
       <div className="sig-card__actions">
+        {canSetTps && (
+          <div className="sig-form__inline">
+            <input
+              className="input input--mono"
+              inputMode="decimal"
+              placeholder={s.tps.length ? "TP mới: 0.08 0.075" : "Thêm TP: 0.08 0.075"}
+              aria-label={`TP cho #${s.id}, tối đa 3, cách nhau bởi dấu cách`}
+              value={tpInput}
+              onChange={(e) => setTpInput(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={busy || !tpsOk}
+              onClick={() => void run({ action: "set_tps", id: s.id, tps: newTps }, `Đã đặt TP #${s.id}: ${newTps.map(fmtPrice).join(" / ")}.`)}
+            >
+              {s.tps.length ? "Đổi TP" : "Thêm TP"}
+            </button>
+          </div>
+        )}
         <div className="sig-form__inline">
           <input className="input input--mono" inputMode="decimal" placeholder="SL mới" aria-label={`SL mới cho #${s.id}`} value={slInput} onChange={(e) => setSlInput(e.target.value)} />
           <button

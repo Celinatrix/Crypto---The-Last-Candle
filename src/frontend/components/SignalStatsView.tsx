@@ -321,8 +321,8 @@ function SignalRow({
           {fmtPrice(s.currentSl)}
           {s.currentSl !== s.sl && <small className="sig__was"> (gốc {fmtPrice(s.sl)})</small>}
         </td>
-        <td data-label="TP" className="is-num num">{s.tps.map(fmtPrice).join(" · ")}</td>
-        <td data-label="R:R" className="is-num num">1 : {plannedRR(s).toFixed(2)}</td>
+        <td data-label="TP" className="is-num num">{s.tps.length ? s.tps.map(fmtPrice).join(" · ") : "—"}</td>
+        <td data-label="R:R" className="is-num num">{s.tps.length ? `1 : ${plannedRR(s)!.toFixed(2)}` : "—"}</td>
         <td data-label="Trạng thái">
           <span className={`admin__badge is-${status.tone}`}>{status.label}</span>
         </td>

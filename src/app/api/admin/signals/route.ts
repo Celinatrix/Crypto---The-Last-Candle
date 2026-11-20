@@ -6,6 +6,8 @@
  *   POST /api/admin/signals             { action: "create", symbol, side, orderType, entry, entry2?, sl, tps, note, caller?, postedAt? }
  *                                       (entry2: optional second entry, limit only; postedAt: ISO time of
  *                                       the chat message, up to 14 days back, null = now)
+ *                                       (tps: 0–3; with none, add them later with set_tps)
+ *                                       { action: "set_tps", id, tps }   (1–3, until a TP is hit)
  *                                       { action: "move_sl", id, price }
  *                                       { action: "close", id, price }   (a pending signal is cancelled)
  * Signed-in admins only; POST also needs a same-origin request.
@@ -22,6 +24,7 @@ import {
   getSignal,
   listSignals,
   moveStop,
+  setTargets,
   SignalInputError,
   SYMBOL_RE,
 } from "@/backend/signals";
@@ -79,7 +82,6 @@ export async function POST(req: NextRequest) {
           !isPrice(b.entry) ||
           (b.entry2 !== undefined && b.entry2 !== null && !isPrice(b.entry2)) ||
           !isPrice(b.sl) ||
-          tps.length < 1 ||
           tps.length > 3 ||
           !tps.every(isPrice) ||
           (b.note !== undefined && b.note !== null && typeof b.note !== "string") ||
@@ -105,6 +107,12 @@ export async function POST(req: NextRequest) {
           admin,
         );
         return NextResponse.json({ ok: true, id });
+      }
+      case "set_tps": {
+        const tps = Array.isArray(b.tps) ? b.tps : [];
+        if (!isId(b.id) || tps.length < 1 || tps.length > 3 || !tps.every(isPrice)) return fail("Dữ liệu không hợp lệ.", 400);
+        await setTargets(b.id, tps as number[], admin);
+        return NextResponse.json({ ok: true });
       }
       case "move_sl":
         if (!isId(b.id) || !isPrice(b.price)) return fail("Dữ liệu không hợp lệ.", 400);

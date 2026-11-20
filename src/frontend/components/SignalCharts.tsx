@@ -273,6 +273,7 @@ const EVENT_LABEL: Record<string, string> = {
   sl_moved: "Dời SL",
   manual_close: "Đóng tay",
   cancelled: "Huỷ lệnh",
+  tps_set: "Đặt TP",
 };
 
 export function CandleChart({ signal, candles, interval }: { signal: Signal; candles: CandlePoint[]; interval: string }) {
@@ -305,7 +306,7 @@ export function CandleChart({ signal, candles, interval }: { signal: Signal; can
     return idx;
   };
   const events = signal.events
-    .filter((e) => e.price !== null && e.kind !== "created")
+    .filter((e) => e.price !== null && e.kind !== "created" && e.kind !== "tps_set")
     .map((e) => ({ ...e, idx: indexOfTime(Date.parse(e.at)) }))
     .filter((e) => e.idx >= 0);
   const labelEvery = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(innerW / 96))));

@@ -6,7 +6,7 @@
  * when a range holds more than `limit` candles it returns the newest ones, so ranges are walked in
  * windows of at most 1,440 minutes. The newest candle is the one still forming and is never replayed.
  */
-import { eq, insertOne, rpc, select } from "./db";
+import { eq, insertOne, rpc, select, update } from "./db";
 import {
   advance,
   closeByHand,
@@ -325,10 +325,10 @@ export async function createSignal(input: NewSignal, by: string): Promise<number
   if (price === null) throw new SignalInputError(`BingX không có giá ${symbol} lúc gọi lệnh.`);
   const when = backdated ? "lúc gọi lệnh" : "hiện tại";
   const long = input.side === "long";
-  const tp1 = input.tps[0]!;
+  const tp1 = input.tps[0];
   // Already past the SL or TP1 when called: the replay would close or cancel it on the first candle.
-  if (long ? price <= input.sl || price >= tp1 : price >= input.sl || price <= tp1) {
-    throw new SignalInputError(`Giá ${when} (${price}) đã vượt SL hoặc TP1.`);
+  if (long ? price <= input.sl || (tp1 !== undefined && price >= tp1) : price >= input.sl || (tp1 !== undefined && price <= tp1)) {
+    throw new SignalInputError(`Giá ${when} (${price}) đã vượt SL${tp1 === undefined ? "" : " hoặc TP1"}.`);
   }
   if (input.orderType === "market" && Math.abs(entry - price) / price > MARKET_TOLERANCE) {
     const off = ((Math.abs(entry - price) / price) * 100).toFixed(1);
@@ -411,6 +411,30 @@ export async function moveStop(id: number, price: number, by: string): Promise<v
   // The stop moves from the next full minute: the event is replayed like any other.
   const ok = await apply(row, s, Date.parse(row.checked_until), [{ at: Date.now(), kind: "sl_moved", price, r: null, by }]);
   if (!ok) throw new SignalInputError("Tín hiệu vừa được cập nhật. Hãy thử lại.");
+}
+
+/**
+ * Sets the take-profits of a running signal (adds them when it was posted without, or changes them
+ * while none has been hit). They apply from the next replayed minute.
+ */
+export async function setTargets(id: number, tps: number[], by: string): Promise<void> {
+  if (tps.length < 1 || tps.length > 3) throw new SignalInputError("Nhập từ 1 đến 3 TP.");
+  const row = await catchUp(id);
+  if (!row) throw new SignalInputError("Không tìm thấy tín hiệu.");
+  if (row.status !== "pending" && row.status !== "open") throw new SignalInputError(STILL_RUNNING);
+  if (row.tp_hits > 0) throw new SignalInputError("Lệnh đã chạm TP, không đổi TP được nữa.");
+  const s = toState(row);
+  const ladder = ladderError(s.side, s.entry, s.sl, tps, s.entry2);
+  if (ladder) throw new SignalInputError(ladder);
+  const live = await fetchPrice(row.symbol);
+  if (live !== null && (s.side === "long" ? live >= tps[0]! : live <= tps[0]!)) {
+    throw new SignalInputError(`Giá hiện tại (${live}) đã vượt TP1.`);
+  }
+  // Only if no replay ran in between (same checked_until), so the new TPs start at a known minute.
+  await update("signals", `id=${eq(id)}&checked_until=eq.${encodeURIComponent(row.checked_until)}&tp_hits=eq.0`, { tps });
+  const after = await loadRow(id);
+  if (!after || after.tps.map(num).join() !== tps.join()) throw new SignalInputError("Tín hiệu vừa được cập nhật. Hãy thử lại.");
+  await insertOne("signal_events", { signal_id: id, at: new Date().toISOString(), kind: "tps_set", price: tps[0], by });
 }
 
 /** Closes an open signal at `price`, or cancels a pending one (price ignored). */
