@@ -141,8 +141,8 @@ const COLUMNS: Column[] = [
     value: (s) => (s.entry2 === null ? fmtPrice(s.entry) : `${fmtPrice(s.entry)} · ${fmtPrice(s.entry2)}`),
   },
   { label: "SL", width: 62, right: true, value: (s) => fmtPrice(s.sl) },
-  { label: "TP", width: 160, right: true, value: (s) => s.tps.map(fmtPrice).join(" · ") },
-  { label: "R:R", width: 36, right: true, value: (s) => plannedRR(s).toFixed(2) },
+  { label: "TP", width: 160, right: true, value: (s) => (s.tps.length ? s.tps.map(fmtPrice).join(" · ") : "—") },
+  { label: "R:R", width: 36, right: true, value: (s) => plannedRR(s)?.toFixed(2) ?? "—" },
   { label: "Trạng thái", width: 104, value: (s) => statusOf(s).label },
   {
     label: "Kết quả",

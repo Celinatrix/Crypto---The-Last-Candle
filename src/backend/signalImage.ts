@@ -261,7 +261,7 @@ async function draftOf(s: RawSignal, now: number): Promise<SignalDraft> {
   // A market order without a written price takes the price when it was called.
   if (entry === null && limit) missing.push("Entry");
   if (sl === null) missing.push("SL");
-  if (tps.length === 0) missing.push("TP");
+  if (tps.length === 0) warnings.push("Chưa có TP: vẫn đăng được, bổ sung TP sau ở mục Đang chạy.");
   return {
     base,
     side: s.side,
